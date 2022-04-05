@@ -31,7 +31,7 @@ endif
 # (You *are* encouraged to design and implement a coherent stable
 # interface, though.:-| As far as I (WHN 2002-05-19) know, no one is
 # working on one and it would be a nice thing to have.)
-LINKFLAGS = -Wl,-export-all-symbols
+LINKFLAGS = -Wl,-export-all-symbols,-pdb=
 LIBSBCL += mswin64.def mswin.def
 USE_LIBSBCL += -Wl,mswin64.def -Wl,mswin.def
 __LDFLAGS__ =
@@ -50,13 +50,13 @@ else
   GC_SRC = fullcgc.c gencgc.c traceroot.c
 endif
 
-CFLAGS =  -g -W -Wall \
+CFLAGS =  -g -gcodeview -W -Wall \
        -Wno-unused-function -Wno-unused-parameter -Wno-cast-function-type \
        -fno-omit-frame-pointer \
-       -O5 -m64 -DWINVER=0x0501 \
+       -O3 -m64 -DWINVER=0x0501 \
        -D__W32API_USE_DLLIMPORT__
 
-CC = gcc
+CC = clang
 
 ifeq ($(shell $(LD) --disable-dynamicbase 2>&1 | grep disable-dynamicbase),)
 LINKFLAGS += -Wl,--disable-dynamicbase

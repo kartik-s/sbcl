@@ -604,7 +604,7 @@ static int next_varyobj_root_page(unsigned int page_index,
     unsigned int word = (0xFFFFFFFFU << bit_index) & varyobj_page_touched_bits[map_index];
     while (1) {
         if (word) {
-            bit_index = ffs(word) - 1;
+            bit_index = __builtin_ffs(word) - 1;
             page_index = map_index * 32 + bit_index;
             if (varyobj_page_gens_augmented(page_index) & genmask)
                 return page_index;
