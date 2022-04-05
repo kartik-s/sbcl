@@ -605,7 +605,7 @@ int hopscotch_insert(tableptr ht, uword_t key, sword_t val)
         unsigned bits = get_hop_mask(ht, logical_bin);
         unsigned masked_bits = bits & bitmask_of_width(displacement);
         if (masked_bits) {
-            int victim = ffs(masked_bits) - 1;  // ffs() is 1-based
+            int victim = __builtin_ffs(masked_bits) - 1;  // ffs() is 1-based
             int physical_elt = logical_bin + victim;
             // Relocate the contents of 'physical_elt' to 'free_index'
             put_pair(free_index, ht->keys[physical_elt], get_val(ht, physical_elt));
