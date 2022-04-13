@@ -3,6 +3,8 @@
 *.o
 *.so
 *.a
+*.pdb
+*.ilk
 *.fasl
 *.FASL
 *.lisp-temp
