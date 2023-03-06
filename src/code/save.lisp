@@ -86,7 +86,8 @@
       (named-lambda %start-lisp ()
         (reinit t)
         (dolist (export callable-exports)
-          (sb-alien::initialize-alien-callable-symbol export)))
+          (sb-alien::initialize-alien-callable-symbol export))
+        (sb-thread:release-foreground))
       (named-lambda %start-lisp ()
         (handling-end-of-the-world
           (reinit t)
