@@ -597,6 +597,13 @@ during backtrace.
   (obj-size-histo :c-type "size_histogram"
                   :length #.(+ histogram-small-bins n-word-bits))
 
+  ;; Lisp as a fiber
+  (alien-callback-index :c-type "int")
+  (alien-callback-arguments :c-type "void *")
+  (alien-callback-return :c-type "void *")
+  (alien-fiber :c-type "void *")
+  (lisp-fiber :c-type "void *")
+
   ;; The *current-thread* MUST be the last slot in the C thread structure.
   ;; It it the only slot that needs to be noticed by the garbage collector.
   (lisp-thread :pointer t :special sb-thread:*current-thread*))

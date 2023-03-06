@@ -413,7 +413,7 @@ int check_pending_thruptions(os_context_t *ctx);
 #define WITH_GC_AT_SAFEPOINTS_ONLY()
 #endif
 
-extern void create_main_lisp_thread(lispobj);
+extern void create_main_lisp_thread(lispobj, void *);
 
 #ifdef LISP_FEATURE_WIN32
 extern CRITICAL_SECTION all_threads_lock;

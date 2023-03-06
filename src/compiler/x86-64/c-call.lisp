@@ -468,10 +468,10 @@
            #+win32 (rcx rcx-tn)
            #-(and win32 sb-thread) (rdi rdi-tn)
            #-(and win32 sb-thread) (rsi rsi-tn)
-           (rdx rdx-tn)
+           #+nil (rdx rdx-tn)
            (rbp rbp-tn)
            (rsp rsp-tn)
-           #+(and win32 sb-thread) (r8 r8-tn)
+           #+(and win32 sb-thread) #+nil (r8 r8-tn)
            (xmm0 float0-tn)
            ([rsp] (ea rsp))
            ;; How many arguments have been copied
@@ -556,26 +556,27 @@
         #+sb-thread
         (progn
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
-          (inst mov #-win32 rdi #+win32 rcx (fixnumize index))
+          (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) (fixnumize index))
           ;; arg1 to ENTER-ALIEN-CALLBACK (pointer to argument vector)
-          (inst mov #-win32 rsi #+win32 rdx rsp)
+          (inst mov (thread-slot-ea thread-alien-callback-arguments-slot) rsp)
           ;; add room on stack for return value
           (inst sub rsp (if (evenp arg-count)
                             (* n-word-bytes 2)
                             n-word-bytes))
           ;; arg2 to ENTER-ALIEN-CALLBACK (pointer to return value)
-          (inst mov #-win32 rdx #+win32 r8 rsp)
+          (inst mov (thread-slot-ea thread-alien-callback-return-slot) rsp)
           ;; Make new frame
           (inst push rbp)
           (inst mov  rbp rsp)
           #+win32 (inst sub rsp #x20)
           #+win32 (inst and rsp #x-20)
+          (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot))
           ;; Call
-          #+immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
+          #-immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
-          #-immobile-space
-          (inst call (ea (+ (foreign-symbol-address "callback_wrapper_trampoline") 8)))
+          #+immobile-space
+          (inst call (ea (foreign-symbol-address "SwitchToFiber")))
           ;; Back! Restore frame
           (inst mov rsp rbp)
           (inst pop rbp))
