@@ -20,8 +20,19 @@
           "SB-ALIEN-INTERNALS")
   (export (intern "DEFINE-ALIEN-CALLABLE" "SB-ALIEN")
           "SB-ALIEN")
+  (export (intern "DEFINE-FAST-ALIEN-CALLABLE" "SB-ALIEN")
+          "SB-ALIEN")
   (export (intern "ALIEN-CALLABLE-FUNCTION" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "ANSWER-ALIEN-CALL" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "YIELD-TO-ALIEN" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "*FIBER-SWITCHING-CALLABLE*" "SB-ALIEN")
           "SB-ALIEN"))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *fiber-switching-callable* nil))
 
 ;;;; ALIEN CALLBACKS
 ;;;;
@@ -81,6 +92,7 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
           (assembler-wrapper
            (alien-callback-assembler-wrapper
             index result-type argument-types
+            :fiber-switching-p *fiber-switching-callable*
             #+x86
             (if (eq call-type :stdcall)
                 (ceiling
@@ -202,6 +214,17 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
            return
            arguments))
 
+(defun answer-alien-call ()
+  (funcall (truly-the function
+                      (svref (sb-kernel:%array-data sb-alien::*alien-callback-trampolines*)
+                             (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))))
+           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
+           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
+
+(defun yield-to-alien ()
+  (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
+                 (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
+
 ;;;; interface (not public, yet) for alien callbacks
 
 (defmacro alien-callback (specifier function &environment env)
@@ -295,6 +318,11 @@ arguments."
        (invalidate-alien-callable ',lisp-name)
        (setf (gethash ',lisp-name *alien-callables*)
              (alien-lambda ,result-type ,typed-lambda-list ,@body)))))
+
+(defmacro define-fast-alien-callable (name result-type typed-lambda-list &body body)
+  `(let ((*fiber-switching-callable* t))
+     (define-alien-callable ,name ,result-type ,typed-lambda-list
+       ,@body)))
 
 (defun alien-callable-function (name)
   "Return the alien callable function associated with NAME."
