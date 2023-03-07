@@ -319,8 +319,10 @@ char* thread_name_from_pthread(pthread_t pointer){
 #endif
 
 struct fiber_data {
+    int argc;
+    char *argv[];
+    char *envp;
     void *alien_fiber;
-    const char *core_file;
 };
 
 void create_main_lisp_thread(lispobj function) {
