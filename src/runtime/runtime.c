@@ -608,7 +608,7 @@ parse_argv(struct memsize_options memsize_options,
 }
 
 int
-initialize_lisp(int argc, char *argv[], char *envp[], void *alien_fiber)
+initialize_lisp(int argc, char *argv[], char *envp[])
 {
 #ifdef LISP_FEATURE_WIN32
     /* Exception handling support structure. Evil Win32 hack. */
@@ -779,6 +779,6 @@ initialize_lisp(int argc, char *argv[], char *envp[], void *alien_fiber)
 
     FSHOW((stderr, "/funcalling initial_function=0x%lx\n",
           (unsigned long)initial_function));
-    create_main_lisp_thread(initial_function, alien_fiber);
+    create_main_lisp_thread(initial_function);
     return 0;
 }
