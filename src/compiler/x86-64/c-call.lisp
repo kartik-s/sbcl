@@ -555,7 +555,8 @@
 
         #+sb-thread
         (progn
-          (inst call (ea (foreign-symbol-address "get_sb_vm_thread")))
+          (inst mov rcx (ea (foreign-symbol-address "sbcl_thread_tls_index")))
+          (inst call (ea (foreign-symbol-address "TlsGetValue")))
           (inst mov thread-tn rax)
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
           (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) (fixnumize index))
