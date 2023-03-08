@@ -283,7 +283,7 @@ static inline int calc_altstack_size(struct thread* thread) {
     return (char*)calc_altstack_end(thread) - (char*)calc_altstack_base(thread);
 }
 #if defined(LISP_FEATURE_WIN32)
-struct thread* get_sb_vm_thread()
+inline struct thread* get_sb_vm_thread()
     __attribute__((__const__));
 int sb_pthr_kill(struct thread* thread, int signum);
 #endif
@@ -293,7 +293,7 @@ int sb_pthr_kill(struct thread* thread, int signum);
  * much stuff like struct thread and all_threads to be defined, which
  * usually aren't by that time.  So, it's here instead.  Sorry */
 
-struct thread *get_sb_vm_thread(void)
+inline struct thread *get_sb_vm_thread(void)
 {
 #if !defined(LISP_FEATURE_SB_THREAD)
      return all_threads;
