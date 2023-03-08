@@ -572,10 +572,8 @@
           #+win32 (inst and rsp #x-20)
           (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot))
           ;; Call
-          #-immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
-          #+immobile-space
           (inst call (ea (foreign-symbol-address "SwitchToFiber")))
           ;; Back! Restore frame
           (inst mov rsp rbp)

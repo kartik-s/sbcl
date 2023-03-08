@@ -320,8 +320,8 @@ char* thread_name_from_pthread(pthread_t pointer){
 
 struct fiber_data {
     int argc;
-    char *argv[];
-    char *envp;
+    char **argv;
+    char **envp;
     void *alien_fiber;
 };
 

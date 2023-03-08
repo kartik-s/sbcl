@@ -95,7 +95,7 @@
           (funcall toplevel)))))
 
 (defun save-lisp-and-die (core-file-name &key
-                                         (toplevel #'toplevel-init toplevel-supplied)
+                                         (toplevel #'toplevel-init)
                                          (executable nil)
                                          (save-runtime-options nil)
                                          (callable-exports ())

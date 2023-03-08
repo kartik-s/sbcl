@@ -1,6 +1,5 @@
+#include <stdio.h>
 #include <Windows.h>
-
-#include "interr.h"
 
 struct fiber_data {
     int argc;
@@ -14,7 +13,6 @@ void init(void *p)
     struct fiber_data *data = p;
     extern int initialize_lisp(int argc, char *argv[], char *envp[]);
     initialize_lisp(data->argc, data->argv, data->envp);
-    lose("unexpected return from initial thread in main()");
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -28,4 +26,7 @@ int main(int argc, char *argv[], char *envp[])
 
     void *lisp_fiber = CreateFiber(0, init, &data);
     SwitchToFiber(lisp_fiber);
+    printf("bye :(\n");
+
+    return 0;
 }
