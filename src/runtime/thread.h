@@ -293,7 +293,7 @@ int sb_pthr_kill(struct thread* thread, int signum);
  * much stuff like struct thread and all_threads to be defined, which
  * usually aren't by that time.  So, it's here instead.  Sorry */
 
-static inline struct thread *get_sb_vm_thread(void)
+inline struct thread *get_sb_vm_thread(void)
 {
 #if !defined(LISP_FEATURE_SB_THREAD)
      return all_threads;
