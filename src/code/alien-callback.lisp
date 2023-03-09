@@ -202,6 +202,12 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
            return
            arguments))
 
+(defun answer-alien-call ()
+  (funcall (truly-the function
+                      (svref (sb-kernel:%array-data sb-alien::*alien-callback-trampolines*)
+                             (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))))
+           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
+           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
 ;;;; interface (not public, yet) for alien callbacks
 
 (defmacro alien-callback (specifier function &environment env)
