@@ -20,7 +20,13 @@
           "SB-ALIEN-INTERNALS")
   (export (intern "DEFINE-ALIEN-CALLABLE" "SB-ALIEN")
           "SB-ALIEN")
+  (export (intern "DEFINE-FAST-ALIEN-CALLABLE" "SB-ALIEN")
+          "SB-ALIEN")
   (export (intern "ALIEN-CALLABLE-FUNCTION" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "ANSWER-ALIEN-CALL" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "YIELD-TO-ALIEN" "SB-ALIEN")
           "SB-ALIEN"))
 
 ;;;; ALIEN CALLBACKS
