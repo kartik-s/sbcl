@@ -27,6 +27,8 @@
   (export (intern "ANSWER-ALIEN-CALL" "SB-ALIEN")
           "SB-ALIEN")
   (export (intern "YIELD-TO-ALIEN" "SB-ALIEN")
+          "SB-ALIEN")
+  (export (intern "*FIBER-SWITCHING-CALLABLE*" "SB-ALIEN")
           "SB-ALIEN"))
 
 ;;;; ALIEN CALLBACKS
@@ -302,7 +304,7 @@ callback to signal an error."
 (define-load-time-global *alien-callables* (make-hash-table :test #'eq)
     "Map from Lisp symbols to the alien callable functions they name.")
 
-(define-load-time-global *fiber-switching-callable* nil)
+(defparameter *fiber-switching-callable* nil)
 
 (defmacro define-alien-callable (name result-type typed-lambda-list &body body)
   "Define an alien callable function in the alien callable namespace with result
