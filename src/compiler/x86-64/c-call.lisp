@@ -555,7 +555,7 @@
 
         #+sb-thread
         (progn
-          (inst mov rcx (rip-relative-ea (foreign-symbol-address "sbcl_thread_tls_index" t)))
+          (inst mov rcx (ea (foreign-symbol-address "sbcl_thread_tls_index" t)))
           (inst mov rcx (ea rcx))
           (inst call (ea (foreign-symbol-address "TlsGetValue")))
           (inst mov thread-tn rax)
