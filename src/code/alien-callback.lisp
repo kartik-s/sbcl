@@ -195,14 +195,12 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
         (ceiling (alien-type-word-aligned-bits type) sb-vm:n-byte-bits)
         (error "Unsupported callback argument type: ~A" type))))
 
-(defun enter-alien-callback ()
+(defun enter-alien-callback (index return arguments)
   (funcall (truly-the function
                       (svref (sb-kernel:%array-data *alien-callback-trampolines*)
-                             (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))))
-           (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)
-           (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot))
-  (with-alien ((switch-to-fiber (function void (* t)) :extern "SwitchToFiber"))
-    (alien-funcall switch-to-fiber (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot))))
+                             index))
+           return
+           arguments))
 
 ;;;; interface (not public, yet) for alien callbacks
 
