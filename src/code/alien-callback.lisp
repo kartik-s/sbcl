@@ -208,6 +208,11 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
                              (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))))
            (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
            (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
+
+(defun yield-to-alien ()
+  (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
+                 (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
+
 ;;;; interface (not public, yet) for alien callbacks
 
 (defmacro alien-callback (specifier function &environment env)
