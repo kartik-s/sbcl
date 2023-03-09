@@ -556,7 +556,7 @@
         #+sb-thread
         (progn
           (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
-          (inst call (ea (foreign-symbol-address "TlsGetValue")))
+          (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
           (inst mov thread-tn rax)
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
           (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) (fixnumize index))
@@ -577,7 +577,7 @@
           ;; Call
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
-          (inst call (ea (foreign-symbol-address "SwitchToFiber")))
+          (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
           ;; Back! Restore frame
           (inst mov rsp rbp)
           (inst pop rbp))
