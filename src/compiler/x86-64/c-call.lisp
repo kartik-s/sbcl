@@ -555,8 +555,7 @@
 
         #+sb-thread
         (progn
-          (inst mov rcx (ea (foreign-symbol-address "sbcl_thread_tls_index")))
-          (inst mov rcx (ea rcx))
+          (inst mov rcx (ea (foreign-symbol-address "sbcl_thread_tls_index" t)))
           (inst call (ea (foreign-symbol-address "TlsGetValue")))
           (inst mov thread-tn rax)
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
