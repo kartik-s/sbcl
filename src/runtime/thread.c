@@ -318,13 +318,6 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
-struct fiber_data {
-    int argc;
-    char **argv;
-    char **envp;
-    void *alien_fiber;
-};
-
 void create_main_lisp_thread(lispobj function) {
 #ifdef LISP_FEATURE_WIN32
     InitializeCriticalSection(&all_threads_lock);
@@ -372,9 +365,6 @@ void create_main_lisp_thread(lispobj function) {
 #ifdef COLLECT_GC_STATS
     atexit(summarize_gc_stats);
 #endif
-
-    th->lisp_fiber = GetCurrentFiber();
-    th->alien_fiber = ((struct fiber_data *) GetFiberData())->alien_fiber;
     /* WIN32 has a special stack arrangement, calling
      * call_into_lisp_first_time will put the new stack in the middle
      * of the current stack */
