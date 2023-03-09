@@ -31,6 +31,9 @@
   (export (intern "*FIBER-SWITCHING-CALLABLE*" "SB-ALIEN")
           "SB-ALIEN"))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *fiber-switching-callable* nil))
+
 ;;;; ALIEN CALLBACKS
 ;;;;
 ;;;; See "Foreign Linkage / Callbacks" in the SBCL Internals manual.
@@ -303,9 +306,6 @@ callback to signal an error."
 
 (define-load-time-global *alien-callables* (make-hash-table :test #'eq)
     "Map from Lisp symbols to the alien callable functions they name.")
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *fiber-switching-callable* nil))
 
 (defmacro define-alien-callable (name result-type typed-lambda-list &body body)
   "Define an alien callable function in the alien callable namespace with result
