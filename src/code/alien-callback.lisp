@@ -81,6 +81,7 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
           (assembler-wrapper
            (alien-callback-assembler-wrapper
             index result-type argument-types
+            :fiber-switching-p *fiber-switching-callable*
             #+x86
             (if (eq call-type :stdcall)
                 (ceiling
@@ -295,6 +296,8 @@ callback to signal an error."
 (define-load-time-global *alien-callables* (make-hash-table :test #'eq)
     "Map from Lisp symbols to the alien callable functions they name.")
 
+(defparameter *fiber-switching-callable* nil)
+
 (defmacro define-alien-callable (name result-type typed-lambda-list &body body)
   "Define an alien callable function in the alien callable namespace with result
 type RESULT-TYPE and with lambda list specifying the alien types of the
@@ -306,6 +309,11 @@ arguments."
        (invalidate-alien-callable ',lisp-name)
        (setf (gethash ',lisp-name *alien-callables*)
              (alien-lambda ,result-type ,typed-lambda-list ,@body)))))
+
+(defmacro define-fast-alien-callable (name result-type typed-lambda-list &body body)
+  (let ((*fiber-switching-callable* t))
+    `(define-alien-callable ,name ,result-type ,typed-lambda-list
+       ,@body)))
 
 (defun alien-callable-function (name)
   "Return the alien callable function associated with NAME."
