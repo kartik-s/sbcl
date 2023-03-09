@@ -84,18 +84,16 @@
 (defun start-lisp (toplevel callable-exports)
   (if callable-exports
       (named-lambda %start-lisp ()
-        (handling-end-of-the-world
-          (reinit t)
-          (dolist (export callable-exports)
-            (sb-alien::initialize-alien-callable-symbol export))
-          (funcall toplevel)))
+        (reinit t)
+        (dolist (export callable-exports)
+          (sb-alien::initialize-alien-callable-symbol export)))
       (named-lambda %start-lisp ()
         (handling-end-of-the-world
           (reinit t)
           (funcall toplevel)))))
 
 (defun save-lisp-and-die (core-file-name &key
-                                         (toplevel #'toplevel-init)
+                                         (toplevel #'toplevel-init toplevel-supplied)
                                          (executable nil)
                                          (save-runtime-options nil)
                                          (callable-exports ())
@@ -207,6 +205,8 @@ sufficiently motivated to do lengthy fixes."
   (declare (ignore environment-name))
   #+gencgc
   (declare (ignorable root-structures))
+  (when (and callable-exports toplevel-supplied)
+    (error ":TOPLEVEL cannot be supplied when there are callable exports."))
   ;; If the toplevel function is not defined, this will signal an
   ;; error before saving, not at startup time.
   (let ((toplevel (%coerce-callable-to-fun toplevel))
