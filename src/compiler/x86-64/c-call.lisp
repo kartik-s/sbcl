@@ -457,7 +457,7 @@
   `(deref (sap-alien (sap+ ,sp ,offset) (* ,type))))
 
 #-sb-xc-host
-(defun alien-callback-assembler-wrapper (index result-type argument-types)
+(defun alien-callback-assembler-wrapper (index result-type argument-types &key (fiber-switch-p nil))
   (labels ((make-tn-maker (sc-name)
              (lambda (offset)
                (make-random-tn :kind :normal
@@ -468,10 +468,10 @@
            #+win32 (rcx rcx-tn)
            #-(and win32 sb-thread) (rdi rdi-tn)
            #-(and win32 sb-thread) (rsi rsi-tn)
-           #+nil (rdx rdx-tn)
+           (rdx rdx-tn)
            (rbp rbp-tn)
            (rsp rsp-tn)
-           #+(and win32 sb-thread) #+nil (r8 r8-tn)
+           #+(and win32 sb-thread) (r8 r8-tn)
            (xmm0 float0-tn)
            ([rsp] (ea rsp))
            ;; How many arguments have been copied
@@ -555,29 +555,53 @@
 
         #+sb-thread
         (progn
-          (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
-          (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
-          (inst mov thread-tn rax)
+          (when fiber-switch-p
+            (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
+            (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
+            (inst mov thread-tn rax))
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
-          (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) index)
+          #-win32
+          (inst mov rdi (fixnumize index))
+          #+win32
+          (inst mov :qword (if fiber-switch-p
+                               (thread-slot-ea thread-alien-callback-index-slot)
+                               rcx)
+                (if fiber-switch-p
+                    index
+                    (fixnumize index)))
           ;; arg1 to ENTER-ALIEN-CALLBACK (pointer to argument vector)
-          (inst mov (thread-slot-ea thread-alien-callback-arguments-slot) rsp)
+          #-win32
+          (inst mov rsi rsp)
+          #+win32
+          (inst mov (if fiber-switch-p
+                        (thread-slot-ea thread-alien-callback-arguments-slot)
+                        rdx)
+                rsp)
           ;; add room on stack for return value
           (inst sub rsp (if (evenp arg-count)
                             (* n-word-bytes 2)
                             n-word-bytes))
           ;; arg2 to ENTER-ALIEN-CALLBACK (pointer to return value)
-          (inst mov (thread-slot-ea thread-alien-callback-return-slot) rsp)
+          #-win32
+          (inst mov rdx rsp)
+          #+win32
+          (inst mov (if fiber-switch-p
+                        (thread-slot-ea thread-alien-callback-return-slot)
+                        r8)
+                rsp)
           ;; Make new frame
           (inst push rbp)
           (inst mov  rbp rsp)
           #+win32 (inst sub rsp #x20)
           #+win32 (inst and rsp #x-20)
-          (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot))
           ;; Call
+          #+immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
-          (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
+          #-immobile-space
+          (when fiber-switch-p
+            (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot)))
+          (inst call (ea (+ 8 (foreign-symbol-address (if fiber-switch-p "SwitchToFiber" "callback_wrapper_trampoline")))))
           ;; Back! Restore frame
           (inst mov rsp rbp)
           (inst pop rbp))
