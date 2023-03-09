@@ -304,7 +304,8 @@ callback to signal an error."
 (define-load-time-global *alien-callables* (make-hash-table :test #'eq)
     "Map from Lisp symbols to the alien callable functions they name.")
 
-(defparameter *fiber-switching-callable* nil)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *fiber-switching-callable* nil))
 
 (defmacro define-alien-callable (name result-type typed-lambda-list &body body)
   "Define an alien callable function in the alien callable namespace with result
