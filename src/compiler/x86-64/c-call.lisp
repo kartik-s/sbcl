@@ -559,7 +559,7 @@
           (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
           (inst mov thread-tn rax)
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
-          (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) (fixnumize index))
+          (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) index)
           ;; arg1 to ENTER-ALIEN-CALLBACK (pointer to argument vector)
           (inst mov (thread-slot-ea thread-alien-callback-arguments-slot) rsp)
           ;; add room on stack for return value
