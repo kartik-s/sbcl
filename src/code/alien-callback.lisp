@@ -320,8 +320,8 @@ arguments."
              (alien-lambda ,result-type ,typed-lambda-list ,@body)))))
 
 (defmacro define-fast-alien-callable (name result-type typed-lambda-list &body body)
-  (let ((*fiber-switching-callable* t))
-    `(define-alien-callable ,name ,result-type ,typed-lambda-list
+  `(let ((*fiber-switching-callable* t))
+     (define-alien-callable ,name ,result-type ,typed-lambda-list
        ,@body)))
 
 (defun alien-callable-function (name)
