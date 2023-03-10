@@ -170,6 +170,31 @@
 ;;; the allocator to use cons_tlab.
 (defconstant +cons-primtype+ list-pointer-lowtag)
 
+(defun assert-page-allocated (tn)
+  (let ((other-tn (if (location= tn rax-tn) rbx-tn rax-tn))
+        (good (gen-label)))
+    (inst push tn)
+    (inst push other-tn)
+    (inst mov other-tn (ea (make-fixup "DYNAMIC_SPACE_START" :foreign-dataref)))
+    (inst mov other-tn (ea other-tn))
+    (inst sub tn other-tn)
+    (inst shr tn (integer-length (1- GENCGC-PAGE-BYTES)))
+    (inst mov other-tn (ea (make-fixup "page_table" :foreign-dataref)))
+    (inst mov other-tn (ea other-tn))
+    ;; sizeof (struct page) depends on GENCGC-PAGE-BYTES
+    ;; It's 4+2+1+1 = 8 bytes if GENCGC-PAGE-BYTES is (unsigned-byte 16),
+    ;; or   4+4+1+1 = 10 bytes (rounded to 12) if wider than (unsigned-byte 16).
+    ;; See the corresponding alien structure definition in 'room.lisp'
+    (if #.(typep gencgc-page-bytes '(unsigned-byte 16))
+        (inst test :byte (ea 6 other-tn tn 8) #b1111)
+        (progn (inst lea tn (ea tn tn 2)) ; multiply by 3
+               (inst test :byte (ea 8 other-tn tn 4) #b1111)))
+    (inst jmp :nz good)
+    (inst break halt-trap)
+    (emit-label good)
+    (inst pop other-tn)
+    (inst pop tn)))
+
 ;;; Emit code to allocate an object with a size in bytes given by
 ;;; SIZE into ALLOC-TN. The size may be an integer of a TN.
 ;;; NODE may be used to make policy-based decisions.
@@ -223,6 +248,7 @@
              (inst jmp :a NOT-INLINE)
              (inst mov free-pointer temp)
              (emit-label DONE)
+             (assert-page-allocated alloc-tn)
              (when (/= lowtag 0) (inst or :byte alloc-tn lowtag))
              (assemble (:elsewhere)
                (emit-label NOT-INLINE)
@@ -242,6 +268,7 @@
                     (inst jmp :a NOT-INLINE)
                     (inst mov free-pointer temp)
                     (emit-label DONE)
+                    (assert-page-allocated alloc-tn)
                     (when (/= lowtag 0) (inst or :byte alloc-tn lowtag)))
                    (t
                     (inst add alloc-tn size)
@@ -251,11 +278,13 @@
                     (cond ((tn-p size)
                            (inst sub alloc-tn size)
                            (emit-label DONE)
+                           (assert-page-allocated alloc-tn)
                            (when (/= lowtag 0) (inst or :byte alloc-tn lowtag)))
                           (t
                            ;; SUB can compute the result and tagify it.
                            ;; The fallback also has to tagify.
                            (inst add alloc-tn (+ (- size) lowtag))
+                           (assert-page-allocated alloc-tn)
                            (emit-label DONE)))))
              (assemble (:elsewhere)
                (emit-label NOT-INLINE)

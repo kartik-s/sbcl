@@ -4671,6 +4671,7 @@ void gc_allocate_ptes()
 {
     page_index_t i;
 
+    fprintf(stderr, "sizeof (struct page) = %ld\n", sizeof (struct page));
     /* Compute the number of pages needed for the dynamic space.
      * Dynamic space size should be aligned on page size. */
     page_table_pages = dynamic_space_size/GENCGC_PAGE_BYTES;
@@ -4820,6 +4821,7 @@ lisp_alloc(int largep, struct alloc_region *region, sword_t nbytes,
         // Most allocations should never get here, but two page types are special.
         gc_assert(page_type == PAGE_TYPE_CONS || page_type == PAGE_TYPE_CODE);
 #endif
+        gc_assert(page_table[find_page_index(new_obj)].type != 0);
         return(new_obj);        /* yup */
     }
 
@@ -4906,6 +4908,7 @@ lisp_alloc(int largep, struct alloc_region *region, sword_t nbytes,
         allocator_record_backtrace(__builtin_frame_address(0), thread);
 #endif
 
+    gc_assert(page_table[find_page_index(new_obj)].type != 0);
     return (new_obj);
 }
 
