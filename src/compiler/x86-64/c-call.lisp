@@ -595,6 +595,8 @@
           #+win32 (inst sub rsp #x20)
           #+win32 (inst and rsp #x-20)
           ;; Call
+          (when fiber-switching-p
+            (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot)))
           #+immobile-space
           (if fiber-switching-p
               (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
@@ -602,8 +604,6 @@
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
           #-immobile-space
-          (when fiber-switching-p
-            (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot)))
           (inst call (ea (+ 8 (foreign-symbol-address (if fiber-switching-p "SwitchToFiber" "callback_wrapper_trampoline")))))
           ;; Back! Restore frame
           (inst mov rsp rbp)
