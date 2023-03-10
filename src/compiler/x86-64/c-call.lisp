@@ -595,7 +595,10 @@
           #+win32 (inst sub rsp #x20)
           #+win32 (inst and rsp #x-20)
           ;; Call
-          #+immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
+          #+immobile-space
+          (if fiber-switching-p
+              (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
+              (inst call (static-symbol-value-ea 'callback-wrapper-trampoline)))
           ;; do this without MAKE-FIXUP because fixup'ing does not happen when
           ;; assembling callbacks (probably could, but ...)
           #-immobile-space
