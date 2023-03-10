@@ -260,7 +260,7 @@ extern int arch_prctl(int code, unsigned long *addr);
 #elif !defined LISP_FEATURE_WIN32
 # define ASSIGN_CURRENT_THREAD(x) pthread_setspecific(current_thread, x)
 #else
-# define ASSIGN_CURRENT_THREAD(x) TlsSetValue(OUR_TLS_INDEX, x);
+# define ASSIGN_CURRENT_THREAD(x) TlsSetValue(OUR_TLS_INDEX, x)
 #endif
 
 #ifdef LISP_FEATURE_WIN32
@@ -318,8 +318,7 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
-void __attribute__((optimize("O0")))
-create_main_lisp_thread(lispobj function) {
+void create_main_lisp_thread(lispobj function) {
 #ifdef LISP_FEATURE_WIN32
     InitializeCriticalSection(&all_threads_lock);
     InitializeCriticalSection(&recyclebin_lock);
