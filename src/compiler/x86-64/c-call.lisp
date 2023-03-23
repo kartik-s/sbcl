@@ -537,8 +537,7 @@
         #+sb-thread
         (progn
           (when fiber-switching-p
-            (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
-            (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
+            (inst call (ea (+ 8 (foreign-symbol-address "read_current_thread"))))
             (inst mov thread-tn rax))
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
           #-win32
