@@ -465,7 +465,6 @@
                          ;; passing arguments
                          (subseq *float-regs* 0 #-win32 8 #+win32 4))))
       (assemble (segment 'nil)
-        #+sb-thread
         (when fiber-switching-p
           (inst push thread-tn))
         ;; Make room on the stack for arguments.
@@ -480,7 +479,9 @@
                 (target-tn (ea (* arg-count n-word-bytes) rsp))
                 ;; A TN pointing to the stack location that contains
                 ;; the next argument passed on the stack.
-                (stack-arg-tn (ea (* (+ 1 (length argument-types) stack-argument-count)
+                (stack-arg-tn (ea (* (+ (if fiber-switching-p 2 1)
+                                        (length argument-types)
+                                        stack-argument-count)
                                      n-word-bytes) rsp)))
             (incf arg-count)
             (cond (integerp
