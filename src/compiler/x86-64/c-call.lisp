@@ -465,6 +465,9 @@
                          ;; passing arguments
                          (subseq *float-regs* 0 #-win32 8 #+win32 4))))
       (assemble (segment 'nil)
+        #+sb-thread
+        (when fiber-switching-p
+          (push thread-tn))
         ;; Make room on the stack for arguments.
         (when argument-types
           (inst sub rsp (* n-word-bytes (length argument-types))))
@@ -612,6 +615,8 @@
                                 2
                                 1))
                          n-word-bytes))
+        (when fiber-switching-p
+          (pop thread-tn))
         ;; Return
         (inst ret))
       (finalize-segment segment)
