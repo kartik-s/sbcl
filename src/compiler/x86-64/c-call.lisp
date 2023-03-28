@@ -467,7 +467,7 @@
       (assemble (segment 'nil)
         #+sb-thread
         (when fiber-switching-p
-          (push thread-tn))
+          (inst push thread-tn))
         ;; Make room on the stack for arguments.
         (when argument-types
           (inst sub rsp (* n-word-bytes (length argument-types))))
@@ -616,7 +616,7 @@
                                 1))
                          n-word-bytes))
         (when fiber-switching-p
-          (pop thread-tn))
+          (inst pop thread-tn))
         ;; Return
         (inst ret))
       (finalize-segment segment)
