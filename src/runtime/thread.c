@@ -805,6 +805,25 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
   __attribute__((sysv_abi));
 #endif
 
+#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+
+void
+start_lisp_fiber_callback_loop(void *alien_fiber)
+{
+  struct thread *th = get_sb_vm_thread();
+  // TOOD: assert that get_sb_vm_thread() is not NULL here
+
+  th->alien_fiber = alien_fiber;
+  th->lisp_fiber = GetCurrentFiber();
+
+  WITH_GC_AT_SAFEPOINTS_ONLY()
+  {
+    funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
+  }
+}
+
+#endif
+
 /* This function's address is assigned into a static symbol's value slot,
  * so it has to look like a fixnum. lp#1991485 */
 void __attribute__((aligned(8)))
@@ -825,6 +844,28 @@ callback_wrapper_trampoline(
         init_thread_data scribble;
         attach_os_thread(&scribble);
 
+#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+        void *alien_fiber;
+
+        if ((alien_fiber = GetCurrentFiber()) == NULL)
+          alien_fiber = ConvertThreadToFiber(NULL);
+
+        void *lisp_fiber = CreateFiber(0, start_lisp_fiber_callback_loop, GetCurrentFiber());
+        args.lisp_fiber = lisp_fiber;
+        SwitchToFiber(lisp_fiber);
+    }
+
+    th = get_sb_vm_thread();
+    // TODO: assert th is not NULL here
+
+    if (GetCurrentFiber() == th->alien_fiber) {
+      th->alien_callback_index = arg0;
+      th->alien_callback_arguments = arg1;
+      th->alien_callback_return = arg2;
+      SwitchToFiber(th->alien_fiber);
+    } else {
+      // TODO: assert GetCurrentFiber() == th->lisp_fiber
+#endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
@@ -847,49 +888,6 @@ callback_wrapper_trampoline(
 #endif
     }
 }
-
-#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
-
-int
-create_alien_and_lisp_fibers(void)
-{
-  void *alien_fiber;
-
-  if ((alien_fiber = GetCurrentFiber()) == NULL)
-    alien_fiber = ConvertThreadToFiber(NULL);
-
-  void *lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, GetCurrentFiber());
-  args.lisp_fiber = lisp_fiber;
-  SwitchToFiber(lisp_fiber);
-}
-
-void
-run_lisp_fiber_callback_loop(void *alien_fiber)
-{
-  // TODO: assert that get_sb_vm_thread() is NULL here
-  init_thread_data scribble;
-  attach_os_thread(&scribble);
-  struct thread *th = get_sb_vm_thread();
-  // TOOD: assert that get_sb_vm_thread() is not NULL here
-
-  th->alien_fiber = alien_fiber;
-  th->lisp_fiber = GetCurrentFiber();
-
-  WITH_GC_AT_SAFEPOINTS_ONLY()
-  {
-    funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
-  }
-  detach_os_thread(&scribble);
-}
-
-void
-in_lisp_fiber_p(void)
-{
-  struct thread *th = get_sb_vm_thread();
-  return th && (GetCurrentFiber() == th->lisp_fiber);
-}
-
-#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
 
 #endif /* LISP_FEATURE_SB_THREAD */
 
