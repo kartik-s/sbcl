@@ -848,6 +848,49 @@ callback_wrapper_trampoline(
     }
 }
 
+#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+
+int
+create_alien_and_lisp_fibers(void)
+{
+  void *alien_fiber;
+
+  if ((alien_fiber = GetCurrentFiber()) == NULL)
+    alien_fiber = ConvertThreadToFiber(NULL);
+
+  void *lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, GetCurrentFiber());
+  args.lisp_fiber = lisp_fiber;
+  SwitchToFiber(lisp_fiber);
+}
+
+void
+run_lisp_fiber_callback_loop(void *alien_fiber)
+{
+  // TODO: assert that get_sb_vm_thread() is NULL here
+  init_thread_data scribble;
+  attach_os_thread(&scribble);
+  struct thread *th = get_sb_vm_thread();
+  // TOOD: assert that get_sb_vm_thread() is not NULL here
+
+  th->alien_fiber = alien_fiber;
+  th->lisp_fiber = GetCurrentFiber();
+
+  WITH_GC_AT_SAFEPOINTS_ONLY()
+  {
+    funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
+  }
+  detach_os_thread(&scribble);
+}
+
+void
+in_lisp_fiber_p(void)
+{
+  struct thread *th = get_sb_vm_thread();
+  return th && (GetCurrentFiber() == th->lisp_fiber);
+}
+
+#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
+
 #endif /* LISP_FEATURE_SB_THREAD */
 
 /* this is called from any other thread to create the new one, and

@@ -39,6 +39,9 @@
 #include <errno.h>
 #include <locale.h>
 #include <limits.h>
+#ifdef LISP_FEATURE_WIN32
+#include <Windows.h>
+#endif
 
 #include <time.h>
 

@@ -555,56 +555,66 @@
 
         #+sb-thread
         (progn
-          (when fiber-switching-p
+          #-alien-fiber-callables
+          (let ((fibers-created (gen-label)))
             (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
             (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
-            (inst mov thread-tn rax))
+            (inst mov thread-tn rax)
+            (inst test thread-tn thread-tn)
+            (inst jmp :nz fiber-exists)
+            (inst call (ea (+ 8 (foreign-symbol-address "create_alien_and_lisp_fibers"))))
+            (emit-label fibers-created))
           ;; arg0 to ENTER-ALIEN-CALLBACK (trampoline index)
-          #-win32
-          (inst mov rdi (fixnumize index))
-          #+win32
-          (inst mov :qword (if fiber-switching-p
-                               (thread-slot-ea thread-alien-callback-index-slot)
-                               rcx)
-                (if fiber-switching-p
-                    index
-                    (fixnumize index)))
+          #-alien-fiber-callables
+          (inst mov #-win32 rdi #+win32 rcx (fixnumize index))
+          #+alien-fiber-callables
+          (inst mov :qword (thread-slot-ea thread-alien-callback-index-slot) index)
           ;; arg1 to ENTER-ALIEN-CALLBACK (pointer to argument vector)
-          #-win32
-          (inst mov rsi rsp)
-          #+win32
-          (inst mov (if fiber-switching-p
-                        (thread-slot-ea thread-alien-callback-arguments-slot)
-                        rdx)
-                rsp)
+          #-alien-fiber-callables
+          (inst mov #-win32 rsi #+win32 rdx rsp)
+          #+alien-fiber-callables
+          (inst mov (thread-slot-ea thread-alien-callback-arguments-slot) rsp)
           ;; add room on stack for return value
           (inst sub rsp (if (evenp arg-count)
                             (* n-word-bytes 2)
                             n-word-bytes))
           ;; arg2 to ENTER-ALIEN-CALLBACK (pointer to return value)
-          #-win32
-          (inst mov rdx rsp)
-          #+win32
-          (inst mov (if fiber-switching-p
-                        (thread-slot-ea thread-alien-callback-return-slot)
-                        r8)
-                rsp)
+          #-alien-fiber-callables
+          (inst mov #-win32 rdx #+win32 r8 rsp)
+          #+alien-fiber-callables
+          (inst mov (thread-slot-ea thread-alien-callback-return-slot) rsp)
           ;; Make new frame
           (inst push rbp)
           (inst mov  rbp rsp)
           #+win32 (inst sub rsp #x20)
           #+win32 (inst and rsp #x-20)
           ;; Call
-          (when fiber-switching-p
-            (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot)))
-          #+immobile-space
-          (if fiber-switching-p
+          #-alien-fiber-callables
+          (progn
+            #+immobile-space (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
+            ;; do this without MAKE-FIXUP because fixup'ing does not happen when
+            ;; assembling callbacks (probably could, but ...)
+            #-immobile-space
+            (inst call (ea (+ (foreign-symbol-address "callback_wrapper_trampoline") 8))))
+          #-alien-fiber-callables
+          (progn
+            (let ((switch-to-fiber (gen-label))
+                  (after-call (gen-label)))
+              (inst call (ea (+ 8 (foreign-symbol-address "in_lisp_fiber_p"))))
+              (inst test eax eax)
+              (inst jump :z switch-to-fiber)
+              ;; we're already on the Lisp fiber, so callback_wrapper_trampoline
+              #+immobile-space
+              (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
+              #-immobile-space
+              (inst call (ea (+ 8 (foreign-symbol-address "callback_wrapper_trampoline"))))
+              (inst jmp after-call)
+              ;; we're in the alien fiber, so call SwitchToFiber
+              (emit-label switch-to-fiber)
+              (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot))
               (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
-              (inst call (static-symbol-value-ea 'callback-wrapper-trampoline)))
-          ;; do this without MAKE-FIXUP because fixup'ing does not happen when
-          ;; assembling callbacks (probably could, but ...)
-          #-immobile-space
-          (inst call (ea (+ 8 (foreign-symbol-address (if fiber-switching-p "SwitchToFiber" "callback_wrapper_trampoline")))))
+              ;; after the call
+              (emit-label after-call)))
           ;; Back! Restore frame
           (inst mov rsp rbp)
           (inst pop rbp))

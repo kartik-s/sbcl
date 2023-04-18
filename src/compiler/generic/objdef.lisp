@@ -613,7 +613,7 @@ during backtrace.
   (obj-size-histo :c-type "size_histogram"
                   :length #.(+ histogram-small-bins n-word-bits))
 
-  ;; Lisp as a fiber
+  ;; Slots required for alien fiber callables
   (alien-callback-index :c-type "int")
   (alien-callback-arguments :c-type "void *")
   (alien-callback-return :c-type "void *")

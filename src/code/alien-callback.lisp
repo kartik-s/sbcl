@@ -214,17 +214,6 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
            return
            arguments))
 
-(defun answer-alien-call ()
-  (funcall (truly-the function
-                      (svref (sb-kernel:%array-data sb-alien::*alien-callback-trampolines*)
-                             (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))))
-           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
-           (sb-kernel:make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
-
-(defun yield-to-alien ()
-  (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
-                 (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
-
 ;;;; interface (not public, yet) for alien callbacks
 
 (defmacro alien-callback (specifier function &environment env)
@@ -319,11 +308,6 @@ arguments."
        (setf (gethash ',lisp-name *alien-callables*)
              (alien-lambda ,result-type ,typed-lambda-list ,@body)))))
 
-(defmacro define-fast-alien-callable (name result-type typed-lambda-list &body body)
-  `(let ((*fiber-switching-callable* t))
-     (define-alien-callable ,name ,result-type ,typed-lambda-list
-       ,@body)))
-
 (defun alien-callable-function (name)
   "Return the alien callable function associated with NAME."
   (gethash name *alien-callables*))
@@ -363,3 +347,29 @@ function value."
       (setf (thread-startup-info thread) startup-info)
       (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
+
+#-alien-fiber-callables
+(progn
+  (defun enter-alien-fiber-callback ()
+    (sb-alien::enter-alien-callback
+     (sap-int (current-thread-offset-sap thread-alien-callback-index-slot))
+     (make-lisp-obj (sap-int (current-thread-offset-sap thread-alien-callback-arguments-slot)))
+     (make-lisp-obj (sap-int (current-thread-offset-sap thread-alien-callback-return-slot)))))
+
+  (defun switch-to-alien-fiber ()
+    (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
+                   (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
+
+  (defun run-fiber-callback-loop ()
+    (let ((thread (init-thread-local-storage (make-foreign-thread))))
+      (dx-let ((startup-info (vector nil ; trampoline is n/a
+                                     nil ; cell in *STARTING-THREADS* is n/a
+                                     #'(lambda ()
+                                         (loop (switch-to-alien-fiber)
+                                               (enter-alien-fiber-callback)))
+                                     (list)
+                                     nil nil))) ; sigmask + fpu state bits
+        (copy-primitive-thread-fields thread)
+        (setf (thread-startup-info thread) startup-info)
+        (update-all-threads (thread-primitive-thread thread) thread)
+        (run)))))

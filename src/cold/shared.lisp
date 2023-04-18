@@ -395,7 +395,9 @@
           "Can't enable SB-FUTEX on platforms lacking thread support")
          ;; There is still hope to make multithreading on DragonFly x86-64
          ("(and sb-thread x86 dragonfly)"
-          ":SB-THREAD not supported on selected architecture")))
+          ":SB-THREAD not supported on selected architecture")
+         ("(and alien-fiber-callables (not win32))"
+          ":ALIEN-FIBER-CALLABLES is only supported on Windows")))
       (failed-test-descriptions nil))
   (dolist (test feature-compatibility-tests)
     (let ((*readtable* *xc-readtable*))
