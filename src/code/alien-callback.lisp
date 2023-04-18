@@ -333,7 +333,7 @@ function value."
                                    nil nil))) ; sigmask + fpu state bits
       (copy-primitive-thread-fields thread)
       (setf (thread-startup-info thread) startup-info)
-      (update-all-threads (thread-primitive-thread thread) thread)
+      #-alien-fiber-callables (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
 
 #-alien-fiber-callables
