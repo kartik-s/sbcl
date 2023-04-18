@@ -853,7 +853,7 @@ callback_wrapper_trampoline(
         if ((alien_fiber = GetCurrentFiber()) == NULL)
           alien_fiber = ConvertThreadToFiber(NULL);
 
-        CreateFiber(0, run_lisp_fiber_callback_loop, alien_fiber);
+        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, alien_fiber);
         SwitchToFiber(lisp_fiber);
     }
 
