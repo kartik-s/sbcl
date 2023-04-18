@@ -810,6 +810,9 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
 void
 run_lisp_fiber_callback_loop(void *alien_fiber)
 {
+#ifdef LISP_FEATURE_X86_64;
+  set_up_win64_seh_thunk(os_vm_page_size);
+#endif
   struct thread *th = get_sb_vm_thread();
 
   th->alien_fiber = alien_fiber;

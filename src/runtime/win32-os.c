@@ -646,7 +646,7 @@ struct win64_seh_data {
     RUNTIME_FUNCTION rt;
 };
 
-static void
+void
 set_up_win64_seh_thunk(size_t page_size)
 {
     if (page_size < sizeof(struct win64_seh_data))
