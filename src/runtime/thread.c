@@ -843,19 +843,17 @@ callback_wrapper_trampoline(
     init_thread_data scribble;
     if (!th) {                  /* callback invoked in non-lisp thread */
         attach_os_thread(&scribble);
-
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
-        void *alien_fiber;
+        th = get_sb_vm_thread();
+
+        void *alien_fiber, *lisp_fiber;
 
         if ((alien_fiber = GetCurrentFiber()) == NULL)
           alien_fiber = ConvertThreadToFiber(NULL);
 
-        void *lisp_fiber = CreateFiber(0, start_lisp_fiber_callback_loop, alien_fiber);
+        CreateFiber(0, start_lisp_fiber_callback_loop, alien_fiber);
         SwitchToFiber(lisp_fiber);
     }
-
-    th = get_sb_vm_thread();
-    // TODO: assert th is not NULL here
 
     if (GetCurrentFiber() == th->alien_fiber) {
       th->alien_callback_index = arg0;
