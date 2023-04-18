@@ -614,9 +614,9 @@ during backtrace.
                   :length #.(+ histogram-small-bins n-word-bits))
 
   ;; Slots required for alien fiber callables
-  (alien-callback-index :c-type "int")
-  (alien-callback-arguments :c-type "void *")
-  (alien-callback-return :c-type "void *")
+  (alien-callback-index :c-type "lispobj")
+  (alien-callback-arguments :c-type "lispobj")
+  (alien-callback-return :c-type "lispobj")
   (alien-fiber :c-type "void *")
   (lisp-fiber :c-type "void *")
 
