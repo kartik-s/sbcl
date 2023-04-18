@@ -457,7 +457,7 @@
   `(deref (sap-alien (sap+ ,sp ,offset) (* ,type))))
 
 #-sb-xc-host
-(defun alien-callback-assembler-wrapper (index result-type argument-types &key (fiber-switching-p nil))
+(defun alien-callback-assembler-wrapper (index result-type argument-types)
   (labels ((make-tn-maker (sc-name)
              (lambda (offset)
                (make-random-tn :kind :normal

@@ -92,7 +92,6 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
           (assembler-wrapper
            (alien-callback-assembler-wrapper
             index result-type argument-types
-            :fiber-switching-p *fiber-switching-callable*
             #+x86
             (if (eq call-type :stdcall)
                 (ceiling
