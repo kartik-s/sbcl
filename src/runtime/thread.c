@@ -811,7 +811,6 @@ void
 run_lisp_fiber_callback_loop(void *alien_fiber)
 {
   struct thread *th = get_sb_vm_thread();
-  // TOOD: assert that get_sb_vm_thread() is not NULL here
 
   th->alien_fiber = alien_fiber;
   th->lisp_fiber = GetCurrentFiber();
@@ -861,9 +860,10 @@ callback_wrapper_trampoline(
       th->alien_callback_index = arg0;
       th->alien_callback_arguments = arg1;
       th->alien_callback_return = arg2;
-      SwitchToFiber(th->alien_fiber);
-    } else {
-#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
+      SwitchToFiber(th->lisp_fiber);
+      return;
+    }
+#else
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
@@ -871,6 +871,7 @@ callback_wrapper_trampoline(
         detach_os_thread(&scribble);
         return;
     }
+#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */
