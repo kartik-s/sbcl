@@ -555,7 +555,7 @@
 
         #+sb-thread
         (progn
-          #-alien-fiber-callables
+          #+alien-fiber-callables
           (let ((fibers-created (gen-label)))
             (inst mov rcx (extern-alien "sbcl_thread_tls_index" int))
             (inst call (ea (+ 8 (foreign-symbol-address "TlsGetValue"))))
@@ -596,23 +596,27 @@
             ;; assembling callbacks (probably could, but ...)
             #-immobile-space
             (inst call (ea (+ (foreign-symbol-address "callback_wrapper_trampoline") 8))))
-          #-alien-fiber-callables
+          #+alien-fiber-callables
           (progn
             (let ((switch-to-fiber (gen-label))
                   (after-call (gen-label)))
+              ;; check if we're in the Lisp fiber
               (inst call (ea (+ 8 (foreign-symbol-address "in_lisp_fiber_p"))))
               (inst test eax eax)
               (inst jump :z switch-to-fiber)
-              ;; we're already on the Lisp fiber, so callback_wrapper_trampoline
+
+              ;; we're already in the Lisp fiber, so call callback_wrapper_trampoline
               #+immobile-space
               (inst call (static-symbol-value-ea 'callback-wrapper-trampoline))
               #-immobile-space
               (inst call (ea (+ 8 (foreign-symbol-address "callback_wrapper_trampoline"))))
               (inst jmp after-call)
+
               ;; we're in the alien fiber, so call SwitchToFiber
               (emit-label switch-to-fiber)
               (inst mov rcx (thread-slot-ea thread-lisp-fiber-slot))
               (inst call (ea (+ 8 (foreign-symbol-address "SwitchToFiber"))))
+
               ;; after the call
               (emit-label after-call)))
           ;; Back! Restore frame
