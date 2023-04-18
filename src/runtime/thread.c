@@ -860,8 +860,9 @@ callback_wrapper_trampoline(
       th->alien_callback_arguments = arg1;
       th->alien_callback_return = arg2;
       SwitchToFiber(th->alien_fiber);
+    } else if (GetCurrentFiber() != th->lisp_fiber) {
+      lose("Attempted to enter a foreign callback from a fiber which is neither the alien nor Lisp fiber for the current thread");
     } else {
-      // TODO: assert GetCurrentFiber() == th->lisp_fiber
 #endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
