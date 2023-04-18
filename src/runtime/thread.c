@@ -808,7 +808,7 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
 
 void
-start_lisp_fiber_callback_loop(void *alien_fiber)
+run_lisp_fiber_callback_loop(void *alien_fiber)
 {
   struct thread *th = get_sb_vm_thread();
   // TOOD: assert that get_sb_vm_thread() is not NULL here
@@ -816,9 +816,11 @@ start_lisp_fiber_callback_loop(void *alien_fiber)
   th->alien_fiber = alien_fiber;
   th->lisp_fiber = GetCurrentFiber();
 
-  WITH_GC_AT_SAFEPOINTS_ONLY()
-  {
-    funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
+  for (;;) {
+    WITH_GC_AT_SAFEPOINTS_ONLY()
+      {
+        funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
+      }
   }
 }
 
@@ -851,7 +853,7 @@ callback_wrapper_trampoline(
         if ((alien_fiber = GetCurrentFiber()) == NULL)
           alien_fiber = ConvertThreadToFiber(NULL);
 
-        CreateFiber(0, start_lisp_fiber_callback_loop, alien_fiber);
+        CreateFiber(0, run_lisp_fiber_callback_loop, alien_fiber);
         SwitchToFiber(lisp_fiber);
     }
 
