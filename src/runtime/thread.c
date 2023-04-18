@@ -824,7 +824,7 @@ run_lisp_fiber_callback_loop(void *alien_fiber)
   }
 }
 
-#endif
+#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
 
 /* This function's address is assigned into a static symbol's value slot,
  * so it has to look like a fixnum. lp#1991485 */
@@ -865,7 +865,7 @@ callback_wrapper_trampoline(
     } else if (GetCurrentFiber() != th->lisp_fiber) {
       lose("Attempted to enter a foreign callback from a fiber which is neither the alien nor Lisp fiber for the current thread");
     } else {
-#endif
+#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
