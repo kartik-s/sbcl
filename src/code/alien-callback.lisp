@@ -340,9 +340,9 @@ function value."
 (progn
   (defun enter-alien-fiber-callback ()
     (sb-alien::enter-alien-callback
-     (sap-int (sb-vm::current-thread-offset-sap thread-alien-callback-index-slot))
-     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap thread-alien-callback-arguments-slot)))
-     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap thread-alien-callback-return-slot)))))
+     (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))
+     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
+     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
 
   (defun switch-to-alien-fiber ()
     (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
