@@ -339,16 +339,19 @@ function value."
 #+alien-fiber-callables
 (progn
   (defun enter-alien-fiber-callback ()
+    (format t "entering alien fiber callback~%")
     (sb-alien::enter-alien-callback
      (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot))
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
 
   (defun switch-to-alien-fiber ()
+    (format t "switching to alien fiber~%")
     (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
                    (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
 
   (defun run-fiber-callback-loop ()
+    (format t "running fiber callback loop~%")
     (let ((thread (init-thread-local-storage (make-foreign-thread))))
       (dx-let ((startup-info (vector nil ; trampoline is n/a
                                      nil ; cell in *STARTING-THREADS* is n/a
