@@ -859,7 +859,8 @@ callback_wrapper_trampoline(
         SwitchToFiber(lisp_fiber);
     }
 
-    if (GetCurrentFiber() == th->alien_fiber) {
+    if ((th->alien_fiber && th->lisp_fiber)
+        && (GetCurrentFiber() == th->alien_fiber())) {
       th->alien_callback_index = arg0;
       th->alien_callback_arguments = arg1;
       th->alien_callback_return = arg2;
