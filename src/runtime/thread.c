@@ -814,6 +814,10 @@ struct fiber_args {
 void
 run_lisp_fiber_callback_loop(void *fiber_args)
 {
+  init_thread_data scribble;
+
+  attach_os_thread(&scribble);
+
   struct thread *th = get_sb_vm_thread();
   struct fiber_args *args = fiber_args;
 
@@ -846,17 +850,15 @@ callback_wrapper_trampoline(
     lispobj arg0, lispobj arg1, lispobj arg2)
 {
     struct thread* th = get_sb_vm_thread();
-    init_thread_data scribble;
     if (!th) {                  /* callback invoked in non-lisp thread */
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+        void *lisp_fiber;
         struct fiber_args args;
+
         args.alien_fiber = ConvertThreadToFiber(NULL);
-        void *lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
-#endif
-        attach_os_thread(&scribble);
-#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
-        th = get_sb_vm_thread();
+        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
         SwitchToFiber(lisp_fiber);
+        th = get_sb_vm_thread();
     }
 
     if ((th->alien_fiber && th->lisp_fiber)
@@ -868,6 +870,9 @@ callback_wrapper_trampoline(
       return;
     }
 #else
+        init_thread_data scribble;
+        attach_os_thread(&scribble);
+
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
