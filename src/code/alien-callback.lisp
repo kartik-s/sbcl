@@ -341,7 +341,7 @@ function value."
   (defun enter-alien-fiber-callback ()
     (format t "entering alien fiber callback~%")
     (sb-alien::enter-alien-callback
-     (sap-ref-32 (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot) 0)
+     (ash (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot)) -1)
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-arguments-slot)))
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-return-slot)))))
 
