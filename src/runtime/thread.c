@@ -807,13 +807,18 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
 
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
 
+struct fiber_args {
+  void *alien_fiber;
+};
+
 void
-run_lisp_fiber_callback_loop(void *alien_fiber)
+run_lisp_fiber_callback_loop(void *fiber_args)
 {
   printf("running lisp fiber callback loop in a new fiber\n");
   struct thread *th = get_sb_vm_thread();
+  struct fiber_args *args = fiber_args;
 
-  th->alien_fiber = alien_fiber;
+  th->alien_fiber = args->alien_fiber;
   th->lisp_fiber = GetCurrentFiber();
 
   printf("fiber slots initialized\n");
@@ -853,11 +858,13 @@ callback_wrapper_trampoline(
         th = get_sb_vm_thread();
 
         void *alien_fiber, *lisp_fiber;
+        struct fiber_args args;
 
         if ((alien_fiber = GetCurrentFiber()) == NULL)
           alien_fiber = ConvertThreadToFiber(NULL);
 
-        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, alien_fiber);
+        args.alien_fiber = alien_fiber;
+        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
         printf("fiber setup complete, switching to Lisp fiber\n");
         SwitchToFiber(lisp_fiber);
         printf("back to the alien fiber\n");
