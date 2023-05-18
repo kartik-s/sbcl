@@ -813,7 +813,7 @@ run_lisp_fiber_callback_loop(void *alien_fiber)
   printf("running lisp fiber callback loop in a new fiber\n");
   struct thread *th = get_sb_vm_thread();
 
-  th->alien_fiber = *alien_fiber;
+  th->alien_fiber = alien_fiber;
   th->lisp_fiber = GetCurrentFiber();
 
   printf("fiber slots initialized\n");
@@ -857,7 +857,7 @@ callback_wrapper_trampoline(
         if ((alien_fiber = GetCurrentFiber()) == NULL)
           alien_fiber = ConvertThreadToFiber(NULL);
 
-        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &alien_fiber);
+        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, alien_fiber);
         printf("fiber setup complete, switching to Lisp fiber\n");
         SwitchToFiber(lisp_fiber);
         printf("back to the alien fiber\n");
