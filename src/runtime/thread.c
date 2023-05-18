@@ -814,19 +814,15 @@ struct fiber_args {
 void
 run_lisp_fiber_callback_loop(void *fiber_args)
 {
-  printf("running lisp fiber callback loop in a new fiber\n");
   struct thread *th = get_sb_vm_thread();
   struct fiber_args *args = fiber_args;
 
   th->alien_fiber = args->alien_fiber;
   th->lisp_fiber = GetCurrentFiber();
 
-  printf("fiber slots initialized\n");
-
   for (;;) {
     WITH_GC_AT_SAFEPOINTS_ONLY()
       {
-        printf("calling into the lisp loop\n");
         funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
       }
   }
@@ -852,7 +848,6 @@ callback_wrapper_trampoline(
     struct thread* th = get_sb_vm_thread();
     init_thread_data scribble;
     if (!th) {                  /* callback invoked in non-lisp thread */
-        printf("did not find a Lisp thread for this OS thread\n");
         attach_os_thread(&scribble);
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
         th = get_sb_vm_thread();
@@ -862,14 +857,11 @@ callback_wrapper_trampoline(
 
         args.alien_fiber = ConvertThreadToFiber(NULL);
         lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
-        printf("fiber setup complete, switching to Lisp fiber\n");
         SwitchToFiber(lisp_fiber);
-        printf("back to the alien fiber\n");
     }
 
     if ((th->alien_fiber && th->lisp_fiber)
         && (GetCurrentFiber() == th->alien_fiber)) {
-      printf("fiber setup was completed and we are on the alien fiber, so switch to the Lisp fiber\n");
       th->alien_callback_index = arg0;
       th->alien_callback_arguments = arg1;
       th->alien_callback_return = arg2;
@@ -885,8 +877,6 @@ callback_wrapper_trampoline(
         return;
     }
 #endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
-
-    printf("falling back to the slow path\n");
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */
