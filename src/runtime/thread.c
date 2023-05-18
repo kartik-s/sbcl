@@ -848,15 +848,14 @@ callback_wrapper_trampoline(
     struct thread* th = get_sb_vm_thread();
     init_thread_data scribble;
     if (!th) {                  /* callback invoked in non-lisp thread */
+#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+        struct fiber_args args;
+        args.alien_fiber = ConvertThreadToFiber(NULL);
+        void *lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
+#endif
         attach_os_thread(&scribble);
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
         th = get_sb_vm_thread();
-
-        void *lisp_fiber;
-        struct fiber_args args;
-
-        args.alien_fiber = ConvertThreadToFiber(NULL);
-        lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
         SwitchToFiber(lisp_fiber);
     }
 
