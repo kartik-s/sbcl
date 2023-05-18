@@ -857,13 +857,10 @@ callback_wrapper_trampoline(
 #ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
         th = get_sb_vm_thread();
 
-        void *alien_fiber, *lisp_fiber;
+        void *lisp_fiber;
         struct fiber_args args;
 
-        if ((alien_fiber = GetCurrentFiber()) == NULL)
-          alien_fiber = ConvertThreadToFiber(NULL);
-
-        args.alien_fiber = alien_fiber;
+        args.alien_fiber = ConvertThreadToFiber(NULL);
         lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
         printf("fiber setup complete, switching to Lisp fiber\n");
         SwitchToFiber(lisp_fiber);
