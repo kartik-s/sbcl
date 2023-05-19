@@ -41,11 +41,14 @@
                           :output t :error :output)
       (sb-alien:load-shared-object solib)))
 
+(define-alien-callable abortthread void ()
+  (sb-thread:abort-thread))
+
 ;;;; Just exercise a ton of calls from 1 thread
 (define-alien-callable perftestcb int () 0)
 (defun trivial-call-test (n)
   (with-alien ((testfun (function int system-area-pointer int) :extern "minimal_perftest"))
-    (alien-funcall testfun (alien-sap (alien-callable-function 'perftestcb)) n)))
+    (alien-funcall testfun (alien-sap (alien-callable-function 'perftestcb)) n (alien-sap (alien-callable-function 'abortthread)))))
 (time (trivial-call-test 200000))
 
 ;;;;
@@ -120,7 +123,7 @@
       (setq *keepon* t)
       (with-alien ((testfun (function int system-area-pointer int int)
                             :extern "call_thing_from_threads"))
-        (assert (eql (alien-funcall testfun (alien-sap (alien-callable-function 'testcb)) n-threads n-calls)
+        (assert (eql (alien-funcall testfun (alien-sap (alien-callable-function 'testcb)) n-threads n-calls (alien-sap (alien-callable-function 'abortthread)))
                      1)))
       (setq *keepon* nil)
       (sb-thread:barrier (:write))

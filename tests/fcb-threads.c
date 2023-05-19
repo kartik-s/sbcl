@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <string.h>
 
-struct thread_arg { void * funkyfun; int index; int n_calls; };
+struct thread_arg { void * funkyfun; int index; int n_calls; void * cleanupfun; };
 
 char *salutations[8] = {
     "Hello", "Hi there!", "Hey", "Hi!", "Ahoy there", "What's up!", "Hola",
@@ -33,14 +33,16 @@ void* perftest_thread(void* void_arg)
     int ncalls = arg->n_calls;
     int i;
     for (i=0; i<ncalls; ++i) lispfun();
+    ((void (*)(void)) arg->cleanupfun)();
     return 0;
 }
 
-int minimal_perftest(void* ptr, int n_calls)
+int minimal_perftest(void* ptr, int n_calls, void* cleanup_ptr)
 {
   struct thread_arg arg;
   arg.funkyfun = ptr;
   arg.n_calls = n_calls;
+  arg.cleanupfun = cleanup_ptr;
 #ifdef _WIN32
   HANDLE thr;
   thr = (HANDLE)_beginthreadex(NULL, 0, perftest_thread, &arg, 0, NULL);
@@ -71,10 +73,11 @@ void* doThatThing(void* void_arg)
         int answer = lispfun(salutation, arg->index + i);
         if (answer != (arg->index + i) * strlen(salutation)) thread_result = 0;
     }
+    ((void (*)(void)) arg->cleanupfun)();
     return (void*)(uintptr_t)thread_result;
 }
 
-int call_thing_from_threads(void* ptr, int n_threads, int n_calls)
+int call_thing_from_threads(void* ptr, int n_threads, int n_calls, void* cleanup_ptr)
 {
     struct {
 #ifdef _WIN32
@@ -95,6 +98,7 @@ int call_thing_from_threads(void* ptr, int n_threads, int n_calls)
         threads[i].arg.funkyfun = ptr;
         threads[i].arg.index = i + 1;
         threads[i].arg.n_calls = n_calls;
+        threads[i].arg.cleanupfun = cleanup_ptr;
 #ifdef _WIN32
         threads[i].handle = (HANDLE)_beginthreadex(NULL, 0, doThatThing, &threads[i].arg, 0, NULL);
 #else
