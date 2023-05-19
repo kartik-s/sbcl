@@ -815,7 +815,7 @@ struct callback_fiber_args {
 struct alien_fiber_data {
   void *lisp_fiber;
   int callback_fiber_done_p;
-}
+};
 
 void
 run_lisp_fiber_callback_loop(void *argsp)
@@ -825,7 +825,7 @@ run_lisp_fiber_callback_loop(void *argsp)
     attach_os_thread(&scribble);
 
     struct thread *th = get_sb_vm_thread();
-    struct lisp_fiber_args *args = argsp;
+    struct callback_fiber_args *args = argsp;
 
     th->alien_fiber = args->alien_fiber;
     th->lisp_fiber = GetCurrentFiber();
@@ -860,7 +860,7 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
 #ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
         struct callback_fiber_args args;
-        struct alien_fiber_data *data = malloc(sizeof(alien_fiber_data));
+        struct alien_fiber_data *data = malloc(sizeof(struct alien_fiber_data));
 
         data->callback_fiber_done_p = 0;
         args.alien_fiber = ConvertThreadToFiber((void *) data);
