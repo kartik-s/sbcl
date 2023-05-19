@@ -396,8 +396,8 @@
          ;; There is still hope to make multithreading on DragonFly x86-64
          ("(and sb-thread x86 dragonfly)"
           ":SB-THREAD not supported on selected architecture")
-         ("(and alien-fiber-callables (not win32) (not sb-thread))"
-          ":ALIEN-FIBER-CALLABLES is only supported on Windows and requires :SB-THREAD")))
+         ("(and foreign-callback-fiber (not win32) (not sb-thread))"
+          ":FOREIGN-CALLBACK-FIBER is only supported on Windows and requires :SB-THREAD")))
       (failed-test-descriptions nil))
   (dolist (test feature-compatibility-tests)
     (let ((*readtable* *xc-readtable*))

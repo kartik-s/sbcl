@@ -805,7 +805,7 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
   __attribute__((sysv_abi));
 #endif
 
-#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
 
 struct fiber_args {
   void *alien_fiber;
@@ -832,7 +832,7 @@ run_lisp_fiber_callback_loop(void *fiber_args)
   }
 }
 
-#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
+#endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
 
 /* This function's address is assigned into a static symbol's value slot,
  * so it has to look like a fixnum. lp#1991485 */
@@ -851,13 +851,13 @@ callback_wrapper_trampoline(
 {
     struct thread* th = get_sb_vm_thread();
     if (!th) {                  /* callback invoked in non-lisp thread */
-#ifdef LISP_FEATURE_ALIEN_FIBER_CALLABLES
         void *lisp_fiber;
         struct fiber_args args;
 
         args.alien_fiber = ConvertThreadToFiber(NULL);
         lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
         SwitchToFiber(lisp_fiber);
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
         th = get_sb_vm_thread();
     }
 
@@ -880,7 +880,7 @@ callback_wrapper_trampoline(
         detach_os_thread(&scribble);
         return;
     }
-#endif /* LISP_FEATURE_ALIEN_FIBER_CALLABLES */
+#endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */

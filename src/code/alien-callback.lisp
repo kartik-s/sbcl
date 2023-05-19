@@ -336,7 +336,7 @@ function value."
       (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
 
-#+alien-fiber-callables
+#+foreign-callback-fiber
 (progn
   (defun enter-alien-fiber-callback ()
     (sb-alien::enter-alien-callback
