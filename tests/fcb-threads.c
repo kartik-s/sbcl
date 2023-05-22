@@ -33,6 +33,7 @@ void* perftest_thread(void* void_arg)
     int ncalls = arg->n_calls;
     int i;
     for (i=0; i<ncalls; ++i) lispfun();
+    ((void (*)(void)) arg->cleanupfun)();
     return 0;
 }
 
@@ -72,6 +73,7 @@ void* doThatThing(void* void_arg)
         int answer = lispfun(salutation, arg->index + i);
         if (answer != (arg->index + i) * strlen(salutation)) thread_result = 0;
     }
+    ((void (*)(void)) arg->cleanupfun)();
     return (void*)(uintptr_t)thread_result;
 }
 
