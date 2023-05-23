@@ -166,23 +166,23 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
   (defun parse-callback-specification (result-type lambda-list)
     (values
      `(function ,result-type ,@(mapcar #'second lambda-list))
-     (mapcar #'first lambda-list))))
+     (mapcar #'first lambda-list)))
 
-(defun parse-alien-ftype (specifier env)
-  (destructuring-bind (function result-type &rest argument-types)
-      specifier
-    (aver (eq 'function function))
-    (multiple-value-bind (bare-result-type calling-convention)
-        (typecase result-type
-          ((cons calling-convention *)
+  (defun parse-alien-ftype (specifier env)
+    (destructuring-bind (function result-type &rest argument-types)
+        specifier
+      (aver (eq 'function function))
+      (multiple-value-bind (bare-result-type calling-convention)
+          (typecase result-type
+            ((cons calling-convention *)
              (values (second result-type) (first result-type)))
-          (t result-type))
-      (values (let ((*values-type-okay* t))
-                (parse-alien-type bare-result-type env))
-              (mapcar (lambda (spec)
-                        (parse-alien-type spec env))
-                      argument-types)
-              calling-convention))))
+            (t result-type))
+        (values (let ((*values-type-okay* t))
+                  (parse-alien-type bare-result-type env))
+                (mapcar (lambda (spec)
+                          (parse-alien-type spec env))
+                        argument-types)
+                calling-convention)))))
 
 (defun alien-type-word-aligned-bits (type)
   (align-offset (alien-type-bits type) sb-vm:n-word-bits))
