@@ -836,7 +836,6 @@ run_lisp_fiber_callback_loop(void *argsp)
 
     detach_os_thread(&scribble);
     args->alien_data->callback_fiber_done_p = 1;
-    printf("exiting callback loop\n");
     SwitchToFiber(args->alien_fiber);
 }
 
@@ -879,7 +878,6 @@ callback_wrapper_trampoline(
       SwitchToFiber(th->lisp_fiber);
       struct alien_fiber_data *data = GetFiberData();
       if (data->callback_fiber_done_p) {
-        printf("call completed and also exited the callback loop\n");
         DeleteFiber(data->lisp_fiber);
         free(GetFiberData());
         ConvertFiberToThread();
