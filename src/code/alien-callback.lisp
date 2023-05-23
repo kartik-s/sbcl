@@ -336,7 +336,10 @@ function value."
       (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
 
-#+foreign-callback-fiber
+(define-alien-callable fiber-callback-loop void ()
+  (loop (switch-to-alien-fiber)
+        (enter-alien-fiber-callback)))
+
 (progn
   (defun enter-alien-fiber-callback ()
     (sb-alien::enter-alien-callback
@@ -349,15 +352,6 @@ function value."
                    (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
 
   (defun run-fiber-callback-loop ()
-    (let ((thread (init-thread-local-storage (make-foreign-thread))))
-      (dx-let ((startup-info (vector nil ; trampoline is n/a
-                                     nil ; cell in *STARTING-THREADS* is n/a
-                                     #'(lambda ()
-                                         (loop (switch-to-alien-fiber)
-                                               (enter-alien-fiber-callback)))
-                                     (list)
-                                     nil nil))) ; sigmask + fpu state bits
-        (copy-primitive-thread-fields thread)
-        (setf (thread-startup-info thread) startup-info)
-        (update-all-threads (thread-primitive-thread thread) thread)
-        (run)))))
+    (enter-foreign-callback
+     (sb-alien::callback-info-index (sb-alien::alien-callable-function 'fiber-callback-loop))
+     (int-sap 0) (int-sap 0))))
