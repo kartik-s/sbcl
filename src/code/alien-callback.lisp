@@ -336,11 +336,12 @@ function value."
       (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
 
-(define-alien-callable fiber-callback-loop void ()
-  (loop (switch-to-alien-fiber)
-        (enter-alien-fiber-callback)))
-
+#+foreign-callback-fiber
 (progn
+  (define-alien-callable fiber-callback-loop void ()
+    (loop (switch-to-alien-fiber)
+          (enter-alien-fiber-callback)))
+
   (defun enter-alien-fiber-callback ()
     (sb-alien::enter-alien-callback
      (ash (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-alien-callback-index-slot)) -1)
