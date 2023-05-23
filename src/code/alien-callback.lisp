@@ -162,10 +162,11 @@ ENTER-ALIEN-CALLBACK pulls the corresponding trampoline out and calls it.")
                          (store (unparse-alien-type result-type) nil))))))
        (values))))
 
-(defun parse-callback-specification (result-type lambda-list)
-  (values
-   `(function ,result-type ,@(mapcar #'second lambda-list))
-   (mapcar #'first lambda-list)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun parse-callback-specification (result-type lambda-list)
+    (values
+     `(function ,result-type ,@(mapcar #'second lambda-list))
+     (mapcar #'first lambda-list))))
 
 (defun parse-alien-ftype (specifier env)
   (destructuring-bind (function result-type &rest argument-types)
