@@ -837,7 +837,7 @@ run_lisp_fiber_callback_loop(void *argsp)
     detach_os_thread(&scribble);
     args->alien_data->callback_fiber_done_p = 1;
     printf("exiting callback loop\n");
-    return;
+    SwitchToFiber(args->alien_fiber);
 }
 
 #endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
