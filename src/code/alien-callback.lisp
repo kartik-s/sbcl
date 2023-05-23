@@ -338,12 +338,6 @@ function value."
       (run))))
 
 #+foreign-callback-fiber
-(eval-when (:load-toplevel)
-  (define-alien-callable fiber-callback-loop void ()
-    (loop (switch-to-alien-fiber)
-          (enter-alien-fiber-callback))))
-
-#+foreign-callback-fiber
 (progn
   (defun enter-alien-fiber-callback ()
     (sb-alien::enter-alien-callback
@@ -356,6 +350,9 @@ function value."
                    (sb-vm::current-thread-offset-sap sb-vm::thread-alien-fiber-slot)))
 
   (defun run-fiber-callback-loop ()
+    (define-alien-callable fiber-callback-loop void ()
+      (loop (switch-to-alien-fiber)
+            (enter-alien-fiber-callback)))
     (enter-foreign-callback
      (sb-alien::callback-info-index (sb-alien::alien-callable-function 'fiber-callback-loop))
      (int-sap 0) (int-sap 0))))
