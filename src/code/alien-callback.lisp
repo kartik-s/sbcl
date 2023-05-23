@@ -355,7 +355,7 @@ function value."
                                      #'(lambda ()
                                          (loop (switch-to-alien-fiber)
                                                (enter-alien-fiber-callback)))
-                                     (list index return arguments)
+                                     nil ; no arguments
                                      nil nil))) ; sigmask + fpu state bits
         (copy-primitive-thread-fields thread)
         (setf (thread-startup-info thread) startup-info)

@@ -814,7 +814,7 @@ struct callback_fiber_args {
 
 struct alien_fiber_data {
   void *lisp_fiber;
-  int callback_fiber_done_p;
+  int callback_loop_done_p;
 };
 
 void
@@ -835,7 +835,7 @@ run_lisp_fiber_callback_loop(void *argsp)
     }
 
     detach_os_thread(&scribble);
-    args->alien_data->callback_fiber_done_p = 1;
+    args->alien_data->callback_loop_done_p = 1;
     SwitchToFiber(args->alien_fiber);
 }
 
@@ -862,7 +862,7 @@ callback_wrapper_trampoline(
         struct callback_fiber_args args;
         struct alien_fiber_data *data = malloc(sizeof(struct alien_fiber_data));
 
-        data->callback_fiber_done_p = 0;
+        data->callback_loop_done_p = 0;
         args.alien_fiber = ConvertThreadToFiber((void *) data);
         args.alien_data = data;
         data->lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
@@ -877,7 +877,7 @@ callback_wrapper_trampoline(
       th->alien_callback_return = arg2;
       SwitchToFiber(th->lisp_fiber);
       struct alien_fiber_data *data = GetFiberData();
-      if (data->callback_fiber_done_p) {
+      if (data->callback_loop_done_p) {
         DeleteFiber(data->lisp_fiber);
         free(GetFiberData());
         ConvertFiberToThread();
