@@ -614,11 +614,16 @@ during backtrace.
                   :length #.(+ histogram-small-bins n-word-bits))
 
   ;; Slots required for alien fiber callables
-  (alien-callback-index :c-type "lispobj")
-  (alien-callback-arguments :c-type "lispobj")
-  (alien-callback-return :c-type "lispobj")
-  (alien-fiber :c-type "void *")
-  (lisp-fiber :c-type "void *")
+  #+foreign-callback-fiber
+  (foreign-callback-index :c-type "lispobj")
+  #+foreign-callback-fiber
+  (foreign-callback-arguments :c-type "lispobj")
+  #+foreign-callback-fiber
+  (foreign-callback-return :c-type "lispobj")
+  #+foreign-callback-fiber
+  (foreign-fiber :c-type "void *")
+  #+foreign-callback-fiber
+  (callback-fiber :c-type "void *")
 
   ;; The *current-thread* MUST be the last slot in the C thread structure.
   ;; It it the only slot that needs to be noticed by the garbage collector.

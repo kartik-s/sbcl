@@ -808,17 +808,17 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
 #ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
 
 struct callback_fiber_args {
-  void *alien_fiber;
-  struct alien_fiber_data *alien_data;
+  void *foreign_fiber;
+  struct foreign_fiber_data *foreign_data;
 };
 
-struct alien_fiber_data {
-  void *lisp_fiber;
+struct foreign_fiber_data {
+  void *callback_fiber;
   int callback_loop_done_p;
 };
 
 void
-run_lisp_fiber_callback_loop(void *argsp)
+run_callback_fiber_loop(void *argsp)
 {
     init_thread_data scribble;
 
@@ -827,16 +827,16 @@ run_lisp_fiber_callback_loop(void *argsp)
     struct thread *th = get_sb_vm_thread();
     struct callback_fiber_args *args = argsp;
 
-    th->alien_fiber = args->alien_fiber;
-    th->lisp_fiber = GetCurrentFiber();
+    th->foreign_fiber = args->foreign_fiber;
+    th->callback_fiber = GetCurrentFiber();
 
     WITH_GC_AT_SAFEPOINTS_ONLY() {
-        funcall0(StaticSymbolFunction(RUN_FIBER_CALLBACK_LOOP));
+        funcall0(StaticSymbolFunction(RUN_CALLBACK_LOOP));
     }
 
     detach_os_thread(&scribble);
-    args->alien_data->callback_loop_done_p = 1;
-    SwitchToFiber(args->alien_fiber);
+    args->foreign_data->callback_loop_done_p = 1;
+    SwitchToFiber(args->foreign_fiber);
 }
 
 #endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
@@ -860,28 +860,34 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
 #ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
         struct callback_fiber_args args;
-        struct alien_fiber_data *data = malloc(sizeof(struct alien_fiber_data));
+        struct foreign_fiber_data *foreign_data = malloc(sizeof(struct foreign_fiber_data));
 
-        data->callback_loop_done_p = 0;
-        args.alien_fiber = ConvertThreadToFiber((void *) data);
-        args.alien_data = data;
-        data->lisp_fiber = CreateFiber(0, run_lisp_fiber_callback_loop, &args);
-        SwitchToFiber(data->lisp_fiber);
+        args.foreign_fiber = ConvertThreadToFiber((void *) foreign_data);
+        args.foreign_data = foreign_data;
+
+        foreign_data->callback_fiber = CreateFiber(0, run_callback_fiber_loop, &args);
+        foreign_data->callback_loop_done_p = 0;
+
+        SwitchToFiber(data->callback_fiber);
+
         th = get_sb_vm_thread();
     }
 
-    if ((th->alien_fiber && th->lisp_fiber)
-        && (GetCurrentFiber() == th->alien_fiber)) {
-      th->alien_callback_index = arg0;
-      th->alien_callback_arguments = arg1;
-      th->alien_callback_return = arg2;
-      SwitchToFiber(th->lisp_fiber);
-      struct alien_fiber_data *data = GetFiberData();
-      if (data->callback_loop_done_p) {
-        DeleteFiber(data->lisp_fiber);
+    if (th->foreign_fiber && (GetCurrentFiber() == th->foreign_fiber)) {
+      th->foreign_callback_index = arg0;
+      th->foreign_callback_arguments = arg1;
+      th->foreign_callback_return = arg2;
+
+      SwitchToFiber(th->callback_fiber);
+
+      struct foreign_fiber_data *foreign_data = GetFiberData();
+
+      if (foreign_data->callback_loop_done_p) {
+        DeleteFiber(foreign_data->callback_fiber);
         free(GetFiberData());
         ConvertFiberToThread();
       }
+
       return;
     }
 #else
