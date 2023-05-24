@@ -879,7 +879,7 @@ callback_wrapper_trampoline(
     }
 
     if (th->foreign_fiber && (GetCurrentFiber() == th->foreign_fiber)) {
-      th->foreign_callback_index = arg0;
+      th->foreign_callback_index = arg0 >> N_FIXNUM_TAG_BITS;
       th->foreign_callback_arguments = arg1;
       th->foreign_callback_return = arg2;
 
