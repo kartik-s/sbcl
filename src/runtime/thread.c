@@ -868,7 +868,7 @@ callback_wrapper_trampoline(
         foreign_data->callback_fiber = CreateFiber(0, run_callback_fiber_loop, &args);
         foreign_data->callback_loop_done_p = 0;
 
-        SwitchToFiber(data->callback_fiber);
+        SwitchToFiber(foreign_data->callback_fiber);
 
         th = get_sb_vm_thread();
     }
