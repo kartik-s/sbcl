@@ -885,6 +885,14 @@ callback_wrapper_trampoline(
 
       SwitchToFiber(th->callback_fiber);
 
+      struct foreign_fiber_data *foreign_data = GetFiberData();
+
+      if (foreign_data->callback_loop_done_p) {
+        DeleteFiber(foreign_data->callback_fiber);
+        free(GetFiberData());
+        ConvertFiberToThread();
+      }
+
       return;
     }
 #else
