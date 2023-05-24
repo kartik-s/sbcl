@@ -340,7 +340,7 @@ function value."
 (progn
   (defun enter-foreign-fiber-callback ()
     (sb-alien::enter-alien-callback
-     (ash (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-index-slot)) -1)
+     (sap-ref-32 (sb-vm::current-thread-sap) sb-vm::thread-foreign-callback-index-slot)
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-arguments-slot)))
      (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-return-slot)))))
 
