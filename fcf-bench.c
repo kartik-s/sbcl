@@ -18,7 +18,7 @@ __stdcall unsigned int run_benchmark(void *argp)
 
   QueryPerformanceFrequency(&ticks_per_sec);
   QueryPerformanceCounter(&start_ticks);
-  
+
   for (int i = 0; i < args->n_calls; i++) {
     sum += fn(3);
   }
@@ -39,7 +39,7 @@ __stdcall void benchmark_regular(void *fn_ptr, int n_calls)
 
   args.fn_ptr = fn_ptr;
   args.n_calls = n_calls;
-  
+
   run_benchmark(&args);
 }
 
@@ -50,7 +50,7 @@ __stdcall void benchmark_callback_fiber(void *fn_ptr, int n_calls)
 
   args.fn_ptr = fn_ptr;
   args.n_calls = n_calls;
-  
+
   HANDLE t = (HANDLE) _beginthreadex(NULL, 0, run_benchmark, &args, 0, NULL);
 
   WaitForSingleObject(t, INFINITE);
