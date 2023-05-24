@@ -749,6 +749,11 @@ static void attach_os_thread(init_thread_data *scribble)
     th->control_stack_end = (void *) (((uintptr_t) stack_addr) + stack_size);
 #endif
 
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
+    th->foreign_fiber = NULL;
+    th->callback_fiber = NULL;
+#endif
+
     /* We don't protect the control stack when adopting a foreign thread
      * because we wouldn't know where to put the guard */
     init_new_thread(th, scribble,
