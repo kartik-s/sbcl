@@ -34,14 +34,14 @@ unsigned int run_call_benchmark(void *argp)
   QueryPerformanceCounter(&start_ticks);
 
   for (int i = 0; i < args->n_calls; i++) {
-    sum = (sum + fn(i % arg_mod)) % sum_mod;
+    sum = (sum + fn(i % args->arg_mod)) % args->sum_mod;
   }
 
   QueryPerformanceCounter(&end_ticks);
   elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
   printf("elapsed time: %f seconds\n", elapsed_time);
 
-  assert(sum == expected_value(n_calls, arg_mod, sum_mod));
+  assert(sum == expected_value(args->n_calls, args->arg_mod, args->sum_mod));
 
   return 0;
 }
