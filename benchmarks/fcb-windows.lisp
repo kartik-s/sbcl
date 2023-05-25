@@ -15,16 +15,26 @@
                                               :extern "benchmark_calls_from_new_thread")
              (c-square (function int int) :extern "square"))
   ;; control: inline
+  (format t "control (inline, no call)")
   (alien-funcall benchmark-control *n-calls* *arg-mod* *sum-mod*)
+  (terpri)
+
   ;; regular C call
+  (format t "regular C call")
   (alien-funcall benchmark-calls-from-same-thread
                  (alien-sap c-square)
                  *n-calls* *arg-mod* *sum-mod*)
+  (terpri)
+
   ;; alien callback
+  (format t "alien callback (C on Lisp thread -> Lisp)")
   (alien-funcall benchmark-calls-from-same-thread
                  (alien-sap (alien-callable-function 'square))
                  *n-calls* *arg-mod* *sum-mod*)
+  (terpri)
+
   ;; foreign callback
+  (format t "foreign callback (C on foreign thread -> Lisp)")
   (alien-funcall benchmark-calls-from-new-thread
                  (alien-sap (alien-callable-function 'square))
                  *n-calls* *arg-mod* *sum-mod*))

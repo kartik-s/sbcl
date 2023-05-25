@@ -26,7 +26,7 @@ unsigned int run_call_benchmark(void *argp)
   struct benchmark_args *args = argp;
   int sum = 0;
   int (*fn)(int) = args->fn_ptr;
-  
+
   LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
   double elapsed_time;
 
@@ -50,7 +50,7 @@ __declspec(dllexport)
 void benchmark_control(int n_calls, int arg_mod, int sum_mod)
 {
   int sum = 0;
-  
+
   LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
   double elapsed_time;
 
