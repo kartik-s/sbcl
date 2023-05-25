@@ -42,10 +42,11 @@ unsigned int run_call_benchmark(void *argp)
   }
 
   QueryPerformanceCounter(&end_ticks);
-  elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
-  printf("elapsed time: %f seconds\n", elapsed_time);
 
   assert(sum == expected_value(args->n_calls, args->arg_mod, args->sum_mod));
+
+  elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
+  printf("elapsed time: %f seconds\n", elapsed_time);
 
   return 0;
 }
@@ -67,11 +68,11 @@ void benchmark_control(uint64_t n_calls, uint64_t arg_mod, uint64_t sum_mod)
   }
 
   QueryPerformanceCounter(&end_ticks);
-  elapsed_time = ((double)(end_ticks.QuadPart - start_ticks.QuadPart)) /
-                 ticks_per_sec.QuadPart;
-  printf("elapsed time: %f seconds\n", elapsed_time);
 
   assert(sum == expected_value(n_calls, arg_mod, sum_mod));
+
+  elapsed_time = ((double)(end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
+  printf("elapsed time: %f seconds\n", elapsed_time);
 }
 
 __declspec(dllexport)
