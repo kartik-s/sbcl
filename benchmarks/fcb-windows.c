@@ -49,11 +49,10 @@ unsigned int run_call_benchmark(void *argp)
   return 0;
 }
 
-unsigned int run_benchmark_control(void *args)
+unsigned int run_benchmark_control(void *argp)
 {
   struct benchmark_args *args = argp;
   int sum = 0;
-  int (*fn)(int) = args->fn_ptr;
   LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
   double elapsed_time;
 
@@ -89,7 +88,7 @@ void benchmark_calls_from_same_thread(void *fn_ptr, int n_calls)
   args.fn_ptr = fn_ptr;
   args.n_calls = n_calls;
 
-  run_benchmark(&args);
+  run_call_benchmark(&args);
 }
 
 __declspec(dllexport)
@@ -100,7 +99,7 @@ __stdcall void benchmark_calls_from_new_thread(void *fn_ptr, int n_calls)
   args.fn_ptr = fn_ptr;
   args.n_calls = n_calls;
 
-  HANDLE t = (HANDLE) _beginthreadex(NULL, 0, run_benchmark, &args, 0, NULL);
+  HANDLE t = (HANDLE) _beginthreadex(NULL, 0, run_call_benchmark, &args, 0, NULL);
 
   WaitForSingleObject(t, INFINITE);
 }
