@@ -1,3 +1,42 @@
+#|
+To run this benchmark on Windows after building from source:
+
+1. gcc -Wall -shared -fPIC -o fcb-windows.dll fcb-windows.c
+2. ../run-sbcl.sh --script fcb-windows.lisp
+
+Here are some sample runs with the default parameters:
+
+#-foreign-callback-fiber
+------------------------
+$ ../run-sbcl.sh --script fcb-windows.lisp
+control (inline, no call)
+elapsed time: 0.119883 seconds
+
+regular C call (C -> C)
+elapsed time: 0.124107 seconds
+
+alien callback (C on Lisp thread -> Lisp)
+elapsed time: 0.317698 seconds
+
+foreign callback (C on foreign thread -> Lisp)
+elapsed time: 393.213626 seconds
+
+
+#+foreign-callback-fiber
+------------------------
+$ ../run-sbcl.sh --script fcb-windows.lisp
+control (inline, no call)
+elapsed time: 0.117288 seconds
+
+regular C call (C -> C)
+elapsed time: 0.125753 seconds
+
+alien callback (C on Lisp thread -> Lisp)
+elapsed time: 0.319400 seconds
+
+foreign callback (C on foreign thread -> Lisp)
+elapsed time: 1.043674 seconds
+|#
 (sb-alien:load-shared-object "fcb-windows.dll")
 
 (define-alien-callable square (unsigned 64) ((x (unsigned 64)))
