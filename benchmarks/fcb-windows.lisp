@@ -9,9 +9,9 @@
 
 (with-alien ((benchmark-control (function void int int int)
                                 :extern "benchmark_control")
-             (benchmark-calls-from-same-thread (function void system-area-pointer int)
+             (benchmark-calls-from-same-thread (function void system-area-pointer int int int)
                                                :extern "benchmark_calls_from_same_thread")
-             (benchmark-calls-from-new-thread (function void system-area-pointer int)
+             (benchmark-calls-from-new-thread (function void system-area-pointer int int int)
                                               :extern "benchmark_calls_from_new_thread")
              (c-square (function int int) :extern "square"))
   ;; control: inline
