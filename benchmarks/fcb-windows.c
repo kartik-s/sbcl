@@ -58,7 +58,8 @@ void benchmark_control(int n_calls, int arg_mod, int sum_mod)
   QueryPerformanceCounter(&start_ticks);
 
   for (int i = 0; i < n_calls; i++) {
-    sum = (sum + fn(i % arg_mod)) % sum_mod;
+    int x = i % arg_mod;
+    sum = (sum + x*x) % sum_mod;
   }
 
   QueryPerformanceCounter(&end_ticks);
@@ -67,8 +68,6 @@ void benchmark_control(int n_calls, int arg_mod, int sum_mod)
   printf("elapsed time: %f seconds\n", elapsed_time);
 
   assert(sum == expected_value(n_calls, arg_mod, sum_mod));
-
-  return 0;
 }
 
 __declspec(dllexport)
@@ -87,7 +86,7 @@ void benchmark_calls_from_same_thread(void *fn_ptr, int n_calls, int arg_mod, in
   args.arg_mod = arg_mod;
   args.sum_mod = sum_mod;
 
-  run_benchmark(&args);
+  run_call_benchmark(&args);
 }
 
 __declspec(dllexport)
@@ -100,7 +99,7 @@ __stdcall void benchmark_calls_from_new_thread(void *fn_ptr, int n_calls, int ar
   args.arg_mod = arg_mod;
   args.sum_mod = sum_mod;
 
-  HANDLE t = (HANDLE) _beginthreadex(NULL, 0, run_benchmark, &args, 0, NULL);
+  HANDLE t = (HANDLE) _beginthreadex(NULL, 0, run_call_benchmark, &args, 0, NULL);
 
   WaitForSingleObject(t, INFINITE);
 }
