@@ -6,6 +6,8 @@
 struct benchmark_args {
   void *fn_ptr;
   int n_calls;
+  int arg_mod;
+  int sum_mod;
 };
 
 unsigned int sum_of_squares(int n)
@@ -23,9 +25,8 @@ unsigned int run_call_benchmark(void *argp)
 {
   struct benchmark_args *args = argp;
   int sum = 0;
-  int arg_mod = 100;
-  int sum_mod = 1000000;
   int (*fn)(int) = args->fn_ptr;
+  
   LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
   double elapsed_time;
 
@@ -48,8 +49,8 @@ unsigned int run_call_benchmark(void *argp)
 __declspec(dllexport)
 void benchmark_control(int n_calls, int arg_mod, int sum_mod)
 {
-  struct benchmark_args *args = argp;
   int sum = 0;
+  
   LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
   double elapsed_time;
 
