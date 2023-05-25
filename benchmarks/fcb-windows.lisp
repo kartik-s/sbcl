@@ -3,7 +3,7 @@
 (define-alien-callable square (unsigned 64) ((x (unsigned 64)))
   (* x x))
 
-(defparameter *n-calls* 100000)
+(defparameter *n-calls* 10000000)
 (defparameter *arg-mod* 100)
 (defparameter *sum-mod* 1000000000)
 
