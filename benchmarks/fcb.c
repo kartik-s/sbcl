@@ -33,7 +33,7 @@ __stdcall unsigned int run_benchmark(void *argp)
 }
 
 __declspec(dllexport)
-__stdcall void benchmark_regular(void *fn_ptr, int n_calls)
+__stdcall void benchmark_alien_callback(void *fn_ptr, int n_calls)
 {
   struct bench_args args;
 
@@ -44,7 +44,7 @@ __stdcall void benchmark_regular(void *fn_ptr, int n_calls)
 }
 
 __declspec(dllexport)
-__stdcall void benchmark_callback_fiber(void *fn_ptr, int n_calls)
+__stdcall void benchmark_foreign_callback(void *fn_ptr, int n_calls)
 {
   struct bench_args args;
 
