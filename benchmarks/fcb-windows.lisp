@@ -1,19 +1,19 @@
 (sb-alien:load-shared-object "fcb-windows.dll")
 
-(define-alien-callable square int ((x int))
+(define-alien-callable square (unsigned 64) ((x (unsigned 64)))
   (* x x))
 
 (defparameter *n-calls* 100000)
 (defparameter *arg-mod* 100)
 (defparameter *sum-mod* 1000000000)
 
-(with-alien ((benchmark-control (function void int int int)
+(with-alien ((benchmark-control (function void (unsigned 64) (unsigned 64) (unsigned 64))
                                 :extern "benchmark_control")
-             (benchmark-calls-from-same-thread (function void system-area-pointer int int int)
+             (benchmark-calls-from-same-thread (function void system-area-pointer (unsigned 64) (unsigned 64) (unsigned 64))
                                                :extern "benchmark_calls_from_same_thread")
-             (benchmark-calls-from-new-thread (function void system-area-pointer int int int)
+             (benchmark-calls-from-new-thread (function void system-area-pointer (unsigned 64) (unsigned 64) (unsigned 64))
                                               :extern "benchmark_calls_from_new_thread")
-             (c-square (function int int) :extern "square"))
+             (c-square (function (unsigned 64) (unsigned 64)) :extern "square"))
   ;; control: inline
   (format t "control (inline, no call)~%")
   (alien-funcall benchmark-control *n-calls* *arg-mod* *sum-mod*)
