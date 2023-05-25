@@ -30,10 +30,11 @@ void* perftest_thread(void* void_arg)
 {
     struct thread_arg* arg = void_arg;
     int (*lispfun)() = arg->funkyfun;
+    void (*cleanupfun)() = arg->cleanupfun;
     int ncalls = arg->n_calls;
     int i;
     for (i=0; i<ncalls; ++i) lispfun();
-    ((void (*)(void)) arg->cleanupfun)();
+    cleanupfun();
     return 0;
 }
 
@@ -65,6 +66,7 @@ void* doThatThing(void* void_arg)
     struct thread_arg* arg = void_arg;
     int thread_result = 0xC0FEFE;
     int (*lispfun)(char*,double) = arg->funkyfun;
+    void (*cleanupfun)(void) = arg->cleanupfun;
     int i;
     // fprintf(stderr, "enter doThatThing %p\n", void_arg); fflush(stderr);
     for(i=0; i<arg->n_calls; ++i) {
@@ -73,7 +75,7 @@ void* doThatThing(void* void_arg)
         int answer = lispfun(salutation, arg->index + i);
         if (answer != (arg->index + i) * strlen(salutation)) thread_result = 0;
     }
-    ((void (*)(void)) arg->cleanupfun)();
+    cleanupfun();
     return (void*)(uintptr_t)thread_result;
 }
 
