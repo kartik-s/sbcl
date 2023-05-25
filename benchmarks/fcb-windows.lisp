@@ -20,7 +20,7 @@
   (terpri)
 
   ;; regular C call
-  (format t "regular C call~%")
+  (format t "regular C call (C -> C)~%")
   (alien-funcall benchmark-calls-from-same-thread
                  (alien-sap c-square)
                  *n-calls* *arg-mod* *sum-mod*)
