@@ -41,6 +41,11 @@
                           :output t :error :output)
       (sb-alien:load-shared-object solib)))
 
+;;; When using :foreign-callback-fiber, we have to kill the trampoline
+;;; loop before completing each test or else the Lisp thread will stay
+;;; alive and cause the tests to fail. We do this by passing a pointer
+;;; to this function to the test functions to invoke before
+;;; completing.
 (define-alien-callable abortthread void ()
   (sb-thread:abort-thread))
 
