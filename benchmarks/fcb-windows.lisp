@@ -3,7 +3,7 @@
 (define-alien-callable square int ((x int))
   (* x x))
 
-(defparameter *n-calls* 1000000)
+(defparameter *n-calls* 100000)
 (defparameter *arg-mod* 100)
 (defparameter *sum-mod* 1000000000)
 
@@ -18,6 +18,7 @@
   (format t "control (inline, no call)")
   (alien-funcall benchmark-control *n-calls* *arg-mod* *sum-mod*)
   (terpri)
+  (terpri)
 
   ;; regular C call
   (format t "regular C call")
@@ -25,12 +26,14 @@
                  (alien-sap c-square)
                  *n-calls* *arg-mod* *sum-mod*)
   (terpri)
+  (terpri)
 
   ;; alien callback
   (format t "alien callback (C on Lisp thread -> Lisp)")
   (alien-funcall benchmark-calls-from-same-thread
                  (alien-sap (alien-callable-function 'square))
                  *n-calls* *arg-mod* *sum-mod*)
+  (terpri)
   (terpri)
 
   ;; foreign callback
