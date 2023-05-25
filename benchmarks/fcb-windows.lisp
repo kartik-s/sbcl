@@ -4,18 +4,27 @@
   (* x x))
 
 (defparameter *n-calls* 1000)
+(defparameter *arg-mod* 100)
+(defparameter *sum-mod* 1000000000)
 
-(with-alien ((benchmark-calls-from-same-thread (function void system-area-pointer int)
+(with-alien ((benchmark-control (function void int int int)
+                                :extern "benchmark_control")
+             (benchmark-calls-from-same-thread (function void system-area-pointer int)
                                                :extern "benchmark_calls_from_same_thread")
              (benchmark-calls-from-new-thread (function void system-area-pointer int)
                                               :extern "benchmark_calls_from_new_thread")
              (c-square (function int int) :extern "square"))
-  ;; control: regular C call
+  ;; control: inline
+  (alien-funcall benchmark-control *n-calls* *arg-mod* *sum-mod*)
+  ;; regular C call
   (alien-funcall benchmark-calls-from-same-thread
-                 (alien-sap c-square) *n-calls*)
+                 (alien-sap c-square)
+                 *n-calls* *arg-mod* *sum-mod*)
   ;; alien callback
   (alien-funcall benchmark-calls-from-same-thread
-                 (alien-sap (alien-callable-function 'square)) *n-calls*)
+                 (alien-sap (alien-callable-function 'square))
+                 *n-calls* *arg-mod* *sum-mod*)
   ;; foreign callback
   (alien-funcall benchmark-calls-from-new-thread
-                 (alien-sap (alien-callable-function 'square)) *n-calls*))
+                 (alien-sap (alien-callable-function 'square))
+                 *n-calls* *arg-mod* *sum-mod*))
