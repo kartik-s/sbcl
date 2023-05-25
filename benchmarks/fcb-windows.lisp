@@ -1,6 +1,8 @@
 (sb-alien:load-shared-object "fcb-windows.dll")
 
 (define-alien-callable square (unsigned 64) ((x (unsigned 64)))
+  (declare (optimize (speed 3) (safety 0)))
+  (declare (type (unsigned-byte 64) x))
   (* x x))
 
 (defparameter *n-calls* 10000000)
