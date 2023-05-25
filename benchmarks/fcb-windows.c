@@ -17,7 +17,10 @@ unsigned int sum_of_squares(int n)
 
 unsigned int expected_value(int n_calls, int arg_mod, int sum_mod)
 {
-  return ((n_calls / arg_mod) * sum_of_squares(arg_mod - 1) + sum_of_squares((n_calls % arg_mod) - 1)) % sum_mod;
+  int full_sum = ((n_calls / arg_mod) * sum_of_squares(arg_mod - 1)) % sum_mod;
+  int partial_sum = sum_of_squares((n_calls % arg_mod) - 1) % sum_mod;
+
+  return (full_sum + partial_sum) % sum_mod;
 }
 
 __stdcall
