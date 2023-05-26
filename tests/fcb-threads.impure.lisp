@@ -41,11 +41,19 @@
                           :output t :error :output)
       (sb-alien:load-shared-object solib)))
 
+;;; When using :foreign-callback-fiber, we have to kill the trampoline
+;;; loop before completing each test or else the Lisp thread will stay
+;;; alive and cause the tests to fail. We do this by passing a pointer
+;;; to this function to the test functions to invoke before
+;;; completing.
+(define-alien-callable abortthread void ()
+  (sb-thread:abort-thread))
+
 ;;;; Just exercise a ton of calls from 1 thread
 (define-alien-callable perftestcb int () 0)
 (defun trivial-call-test (n)
-  (with-alien ((testfun (function int system-area-pointer int) :extern "minimal_perftest"))
-    (alien-funcall testfun (alien-sap (alien-callable-function 'perftestcb)) n)))
+  (with-alien ((testfun (function int system-area-pointer int system-area-pointer) :extern "minimal_perftest"))
+    (alien-funcall testfun (alien-sap (alien-callable-function 'perftestcb)) n (alien-sap (alien-callable-function 'abortthread)))))
 (time (trivial-call-test 200000))
 
 ;;;;
@@ -118,9 +126,9 @@
                  (if (not *keepon*) (return)))))))
           (start (get-internal-real-time)))
       (setq *keepon* t)
-      (with-alien ((testfun (function int system-area-pointer int int)
+      (with-alien ((testfun (function int system-area-pointer int int system-area-pointer)
                             :extern "call_thing_from_threads"))
-        (assert (eql (alien-funcall testfun (alien-sap (alien-callable-function 'testcb)) n-threads n-calls)
+        (assert (eql (alien-funcall testfun (alien-sap (alien-callable-function 'testcb)) n-threads n-calls (alien-sap (alien-callable-function 'abortthread)))
                      1)))
       (setq *keepon* nil)
       (sb-thread:barrier (:write))

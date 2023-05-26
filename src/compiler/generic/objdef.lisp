@@ -613,6 +613,25 @@ during backtrace.
   (obj-size-histo :c-type "size_histogram"
                   :length #.(+ histogram-small-bins n-word-bits))
 
+  ;; When :foreign-callback-fiber is enabled, the foreign fiber passes
+  ;; the callback index, arguments pointer, and arguments pointer to
+  ;; the callback fiber by setting these slots in the thread struct
+  ;; associated with their shared OS thread.
+  #+foreign-callback-fiber
+  (foreign-callback-index :c-type "lispobj")
+  #+foreign-callback-fiber
+  (foreign-callback-arguments :c-type "lispobj")
+  #+foreign-callback-fiber
+  (foreign-callback-return :c-type "lispobj")
+
+  ;; When :foreign-callback-fiber is enabled, the foreign and callback
+  ;; fiber handles for use with SwitchToFiber, DeleteFiber, and
+  ;; GetFiberData are stored here.
+  #+foreign-callback-fiber
+  (foreign-fiber :c-type "void *")
+  #+foreign-callback-fiber
+  (callback-fiber :c-type "void *")
+
   ;; The *current-thread* MUST be the last slot in the C thread structure.
   ;; It it the only slot that needs to be noticed by the garbage collector.
   (lisp-thread :pointer t :special sb-thread:*current-thread*))

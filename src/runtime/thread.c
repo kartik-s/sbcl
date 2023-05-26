@@ -749,6 +749,11 @@ static void attach_os_thread(init_thread_data *scribble)
     th->control_stack_end = (void *) (((uintptr_t) stack_addr) + stack_size);
 #endif
 
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
+    th->foreign_fiber = NULL;
+    th->callback_fiber = NULL;
+#endif
+
     /* We don't protect the control stack when adopting a foreign thread
      * because we wouldn't know where to put the guard */
     init_new_thread(th, scribble,
@@ -805,6 +810,42 @@ extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
   __attribute__((sysv_abi));
 #endif
 
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
+
+struct callback_fiber_args {
+  void *foreign_fiber;
+  struct foreign_fiber_data *foreign_data;
+};
+
+struct foreign_fiber_data {
+  void *callback_fiber;
+  int callback_loop_done_p;
+};
+
+void
+run_callback_fiber_loop(void *argsp)
+{
+    init_thread_data scribble;
+
+    attach_os_thread(&scribble);
+
+    struct thread *th = get_sb_vm_thread();
+    struct callback_fiber_args *args = argsp;
+
+    th->foreign_fiber = args->foreign_fiber;
+    th->callback_fiber = GetCurrentFiber();
+
+    WITH_GC_AT_SAFEPOINTS_ONLY() {
+        funcall0(StaticSymbolFunction(RUN_CALLBACK_LOOP));
+    }
+
+    detach_os_thread(&scribble);
+    args->foreign_data->callback_loop_done_p = 1;
+    SwitchToFiber(args->foreign_fiber);
+}
+
+#endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
+
 /* This function's address is assigned into a static symbol's value slot,
  * so it has to look like a fixnum. lp#1991485 */
 void __attribute__((aligned(8)))
@@ -822,6 +863,39 @@ callback_wrapper_trampoline(
 {
     struct thread* th = get_sb_vm_thread();
     if (!th) {                  /* callback invoked in non-lisp thread */
+#ifdef LISP_FEATURE_FOREIGN_CALLBACK_FIBER
+        struct callback_fiber_args args;
+        struct foreign_fiber_data *foreign_data = malloc(sizeof(struct foreign_fiber_data));
+
+        args.foreign_fiber = ConvertThreadToFiber((void *) foreign_data);
+        args.foreign_data = foreign_data;
+
+        foreign_data->callback_fiber = CreateFiber(0, run_callback_fiber_loop, &args);
+        foreign_data->callback_loop_done_p = 0;
+
+        SwitchToFiber(foreign_data->callback_fiber);
+
+        th = get_sb_vm_thread();
+    }
+
+    if (th->foreign_fiber && (GetCurrentFiber() == th->foreign_fiber)) {
+      th->foreign_callback_index = arg0 >> N_FIXNUM_TAG_BITS;
+      th->foreign_callback_arguments = arg1;
+      th->foreign_callback_return = arg2;
+
+      SwitchToFiber(th->callback_fiber);
+
+      struct foreign_fiber_data *foreign_data = GetFiberData();
+
+      if (foreign_data->callback_loop_done_p) {
+        DeleteFiber(foreign_data->callback_fiber);
+        free(GetFiberData());
+        ConvertFiberToThread();
+      }
+
+      return;
+    }
+#else
         init_thread_data scribble;
         attach_os_thread(&scribble);
 
@@ -832,6 +906,7 @@ callback_wrapper_trampoline(
         detach_os_thread(&scribble);
         return;
     }
+#endif /* LISP_FEATURE_FOREIGN_CALLBACK_FIBER */
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */

@@ -335,3 +335,29 @@ function value."
       (setf (thread-startup-info thread) startup-info)
       (update-all-threads (thread-primitive-thread thread) thread)
       (run))))
+
+#+foreign-callback-fiber
+(progn
+  (defun enter-foreign-fiber-callback ()
+    (sb-alien::enter-alien-callback
+     (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-index-slot))
+     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-arguments-slot)))
+     (make-lisp-obj (sap-int (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-callback-return-slot)))))
+
+  (defun switch-to-foreign-fiber ()
+    (alien-funcall (extern-alien "SwitchToFiber" (function void (* t)))
+                   (sb-vm::current-thread-offset-sap sb-vm::thread-foreign-fiber-slot)))
+
+  (defun run-callback-loop ()
+    (let ((thread (init-thread-local-storage (make-foreign-thread))))
+      (dx-let ((startup-info (vector nil ; trampoline is n/a
+                                     nil ; cell in *STARTING-THREADS* is n/a
+                                     #'(lambda ()
+                                         (loop (switch-to-foreign-fiber)
+                                               (enter-foreign-fiber-callback)))
+                                     nil ; no arguments
+                                     nil nil))) ; sigmask + fpu state bits
+        (copy-primitive-thread-fields thread)
+        (setf (thread-startup-info thread) startup-info)
+        (update-all-threads (thread-primitive-thread thread) thread)
+        (run)))))
