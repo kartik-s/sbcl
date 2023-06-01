@@ -327,6 +327,13 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
+void cleanup_thread(void *scribble)
+{
+  detach_os_thread((init_thread_data *) scribble);
+
+  return;
+}
+
 void create_main_lisp_thread(lispobj function) {
 #ifdef LISP_FEATURE_WIN32
     InitializeCriticalSection(&all_threads_lock);
@@ -341,7 +348,7 @@ void create_main_lisp_thread(lispobj function) {
     pthread_key_create(&current_thread, 0);
 #endif
 #if defined LISP_FEATURE_SB_THREAD
-    pthread_key_create(&foreign_thread_ever_lispified, 0);
+    pthread_key_create(&foreign_thread_ever_lispified, cleanup_thread);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
@@ -797,12 +804,13 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
+        pthread_set_specific(foreign_thread_ever_lispified, &scribble);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
-        detach_os_thread(&scribble);
+
         return;
     }
 
