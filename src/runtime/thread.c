@@ -340,7 +340,7 @@ void create_main_lisp_thread(lispobj function) {
 #if defined LISP_FEATURE_SB_THREAD && !defined LISP_FEATURE_GCC_TLS && !defined LISP_FEATURE_WIN32
     pthread_key_create(&current_thread, 0);
 #endif
-#if defined LISP_FEATURE_DARWIN && defined LISP_FEATURE_SB_THREAD
+#if defined LISP_FEATURE_SB_THREAD
     pthread_key_create(&foreign_thread_ever_lispified, 0);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
@@ -738,7 +738,7 @@ static void detach_os_thread(init_thread_data *scribble)
     CloseHandle((HANDLE)th->os_thread);
 #endif
 
-#ifdef LISP_FEATURE_DARWIN
+#ifdef LISP_FEATURE_SB_THREAD
     pthread_setspecific(foreign_thread_ever_lispified, (void*)1);
 #endif
     unregister_thread(th, scribble);

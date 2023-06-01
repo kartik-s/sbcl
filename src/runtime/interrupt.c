@@ -189,7 +189,7 @@ static void sigmask_logandc(sigset_t *dest, const sigset_t *source)
  * work for SIGSEGV and similar. It is good enough for timers, and
  * maybe all deferrables. */
 
-#if defined LISP_FEATURE_DARWIN && defined LISP_FEATURE_SB_THREAD
+#if defined LISP_FEATURE_SB_THREAD
 pthread_key_t foreign_thread_ever_lispified;
 int sigwait_bug_mitigation_count;
 #endif
