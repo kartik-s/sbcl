@@ -57,6 +57,10 @@
 #endif
 #endif
 
+#ifdef LISP_FEATURE_SB_THREAD
+extern pthread_key_t foreign_thread_ever_lispified;
+#endif
+
 int dynamic_values_bytes = 4096 * sizeof(lispobj);  // same for all threads
 // exposed to lisp for pthread_create if not C_STACK_IS_CONTROL_STACK
 os_vm_size_t thread_alien_stack_size = ALIEN_STACK_SIZE;
