@@ -332,6 +332,8 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
+static void detach_os_thread(init_thread_data *);
+
 void cleanup_thread(void *scribble)
 {
   detach_os_thread((init_thread_data *) scribble);
