@@ -355,7 +355,7 @@ void create_main_lisp_thread(lispobj function) {
     pthread_key_create(&current_thread, 0);
 #endif
 #if defined LISP_FEATURE_SB_THREAD
-    pthread_key_create(&foreign_thread_ever_lispified, cleanup_thread);
+    // pthread_key_create(&foreign_thread_ever_lispified, cleanup_thread);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
@@ -811,7 +811,6 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
-        pthread_setspecific(foreign_thread_ever_lispified, &scribble);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
