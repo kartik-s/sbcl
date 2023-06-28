@@ -332,11 +332,16 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
-static void detach_os_thread(init_thread_data *);
+static void detach_os_thread(init_thread_data *, struct thread *);
 
-void cleanup_thread(void *scribble)
+void cleanup_thread(void *th)
 {
-  detach_os_thread((init_thread_data *) scribble);
+  printf("cleaning up thread %p\n", pthread_self());
+
+  if (pthread_getspecific(foreign_thread_ever_lispified)) {
+    printf("thread %p was lispified, detaching\n", pthread_self());
+    detach_os_thread(NULL, th);
+  }
 
   return;
 }
@@ -352,10 +357,10 @@ void create_main_lisp_thread(lispobj function) {
         lose("can't create initial thread");
     th->state_word.sprof_enable = 1;
 #if defined LISP_FEATURE_SB_THREAD && !defined LISP_FEATURE_GCC_TLS && !defined LISP_FEATURE_WIN32
-    pthread_key_create(&current_thread, 0);
+    pthread_key_create(&current_thread, cleanup_thread);
 #endif
 #if defined LISP_FEATURE_SB_THREAD
-    // pthread_key_create(&foreign_thread_ever_lispified, cleanup_thread);
+    pthread_key_create(&foreign_thread_ever_lispified, cleanup_thread);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
@@ -744,18 +749,20 @@ static void attach_os_thread(init_thread_data *scribble)
                     recycled_memory ? 0 : GUARD_BINDING_STACK|GUARD_ALIEN_STACK);
 }
 
-static void detach_os_thread(init_thread_data *scribble)
+static void detach_os_thread(init_thread_data *scribble, struct thread *th2)
 {
     struct thread *th = get_sb_vm_thread();
+
+    if (!th)
+      th = th2;
 
 #if defined(LISP_FEATURE_WIN32)
     CloseHandle((HANDLE)th->os_thread);
 #endif
 
-#ifdef LISP_FEATURE_SB_THREAD
-    pthread_setspecific(foreign_thread_ever_lispified, (void*)1);
-#endif
+    printf("unregistering thread %p\n", th);
     unregister_thread(th, scribble);
+    printf("finished unregistering thread %p\n", th);
 
     /* We have to clear a STOP_FOR_GC signal if pending. Consider:
      *  - on entry to unregister_thread, we block all signals
@@ -808,9 +815,12 @@ callback_wrapper_trampoline(
     lispobj arg0, lispobj arg1, lispobj arg2)
 {
     struct thread* th = get_sb_vm_thread();
+    printf("foreign call from thread: %p (Lisp thread %p)\n", pthread_self(), th);
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
+        pthread_setspecific(foreign_thread_ever_lispified, &scribble);
+        printf("attached OS thread %p to Lisp thread %p\n", pthread_self(), th);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
