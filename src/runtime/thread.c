@@ -336,6 +336,9 @@ static void detach_os_thread(init_thread_data *, struct thread *);
 
 void cleanup_thread(void *th)
 {
+  if (!th)
+    return;
+
   printf("cleaning up thread %p\n", pthread_self());
 
   if (pthread_getspecific(foreign_thread_ever_lispified)) {
@@ -1184,10 +1187,15 @@ void gc_stop_the_world()
                 rc = pthread_kill(th->os_thread,SIG_STOP_FOR_GC);
                 /* This used to bogusly check for ESRCH.
                  * I changed the ESRCH case to just fall into lose() */
+                if (rc) {
+                  cleanup_thread(th);
+                }
+#if 0
                 if (rc) lose("cannot suspend thread %p: %d, %s",
                      // KLUDGE: assume that os_thread can be cast as pointer.
                      // See comment in 'interr.h' about that.
                      (void*)th->os_thread, rc, strerror(rc));
+#endif
             }
             os_sem_post(&semaphores->state_sem, "notified stop");
         }
