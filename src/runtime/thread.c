@@ -339,10 +339,7 @@ void cleanup_thread(void *th)
   if (!th)
     return;
 
-  printf("cleaning up thread %p\n", pthread_self());
-
   if (pthread_getspecific(foreign_thread_ever_lispified)) {
-    printf("thread %p was lispified, detaching\n", pthread_self());
     detach_os_thread(NULL, th);
   }
 
@@ -763,9 +760,7 @@ static void detach_os_thread(init_thread_data *scribble, struct thread *th2)
     CloseHandle((HANDLE)th->os_thread);
 #endif
 
-    printf("unregistering thread %p\n", th);
     unregister_thread(th, scribble);
-    printf("finished unregistering thread %p\n", th);
 
     /* We have to clear a STOP_FOR_GC signal if pending. Consider:
      *  - on entry to unregister_thread, we block all signals
@@ -818,12 +813,10 @@ callback_wrapper_trampoline(
     lispobj arg0, lispobj arg1, lispobj arg2)
 {
     struct thread* th = get_sb_vm_thread();
-    printf("foreign call from thread: %p (Lisp thread %p)\n", pthread_self(), th);
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
         pthread_setspecific(foreign_thread_ever_lispified, &scribble);
-        printf("attached OS thread %p to Lisp thread %p\n", pthread_self(), th);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
