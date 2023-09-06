@@ -932,7 +932,7 @@ callback_wrapper_trampoline(
         WITH_GC_STATE_LOCK {
           gc_state_wait(GC_NONE);
         }
-        push_gcing_safety(&scribble->safety);
+        push_gcing_safety(&scribble.safety);
 #endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
