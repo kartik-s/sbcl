@@ -857,6 +857,41 @@ callback_wrapper_trampoline(
         }
         push_gcing_safety(&scribble.safety);
 #endif
+
+#if !defined(LISP_FEATURE_WIN32) && defined(LISP_FEATURE_C_STACK_IS_CONTROL_STACK)
+        /* On windows, arch_os_thread_init will take care of finding the
+         * stack. */
+        void *stack_addr;
+        size_t stack_size;
+# ifdef LISP_FEATURE_OPENBSD
+        stack_t stack;
+        pthread_stackseg_np(th->os_thread, &stack);
+        stack_size = stack.ss_size;
+        stack_addr = (void*)((size_t)stack.ss_sp - stack_size);
+# elif defined LISP_FEATURE_SUNOS
+        stack_t stack;
+        thr_stksegment(&stack);
+        stack_size = stack.ss_size;
+        stack_addr = (void*)((size_t)stack.ss_sp - stack_size);
+# elif defined(LISP_FEATURE_DARWIN)
+        stack_size = pthread_get_stacksize_np(th->os_thread);
+        stack_addr = (char*)pthread_get_stackaddr_np(th->os_thread) - stack_size;
+# else
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+#   if defined LISP_FEATURE_FREEBSD || defined LISP_FEATURE_DRAGONFLY
+        pthread_attr_get_np(th->os_thread, &attr);
+#   else
+        int pthread_getattr_np(pthread_t, pthread_attr_t *);
+        pthread_getattr_np(th->os_thread, &attr);
+#   endif
+        pthread_attr_getstack(&attr, &stack_addr, &stack_size);
+        pthread_attr_destroy(&attr);
+# endif
+        th->control_stack_start = stack_addr;
+        th->control_stack_end = (void *) (((uintptr_t) stack_addr) + stack_size);
+#endif
+
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
