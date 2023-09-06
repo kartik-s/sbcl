@@ -838,14 +838,8 @@ callback_wrapper_trampoline(
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
 #else
-        set_thread_state(th, STATE_DEAD, 1);
+        set_thread_state(th, STATE_DEAD, 0);
 #endif
-
-        __attribute__((unused)) int lock_ret = mutex_acquire(&all_threads_lock);
-        gc_assert(lock_ret);
-        unlink_thread(th);
-        lock_ret = mutex_release(&all_threads_lock);
-        gc_assert(lock_ret);
 
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
@@ -854,11 +848,6 @@ callback_wrapper_trampoline(
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         csp_around_foreign_call(th) = (lispobj)&scribble;
 #endif
-        __attribute__((unused)) int lock_ret = mutex_acquire(&all_threads_lock);
-        gc_assert(lock_ret);
-        link_thread(th);
-        ignore_value(mutex_release(&all_threads_lock));
-
         /* Kludge: Changed the order of some steps between the safepoint/
          * non-safepoint versions of this code.  Can we unify this more?
          */
@@ -875,13 +864,8 @@ callback_wrapper_trampoline(
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
 #else
-        set_thread_state(th, STATE_DEAD, 1);
+        set_thread_state(th, STATE_DEAD, 0);
 #endif
-        lock_ret = mutex_acquire(&all_threads_lock);
-        gc_assert(lock_ret);
-        unlink_thread(th);
-        lock_ret = mutex_release(&all_threads_lock);
-        gc_assert(lock_ret);
 
         return;
     }
