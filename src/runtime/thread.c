@@ -828,6 +828,7 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
+        th = get_sb_vm_thread();
         pthread_setspecific(foreign_thread_ever_lispified, (void *) 1);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
