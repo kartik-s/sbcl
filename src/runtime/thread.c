@@ -835,98 +835,10 @@ callback_wrapper_trampoline(
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
-        block_blockable_signals(0);
-#ifdef LISP_FEATURE_SB_SAFEPOINT
-        pop_gcing_safety(&scribble.safety);
-#else
-        set_thread_state(th, STATE_DEAD, 1);
-#endif
-#if !defined LISP_FEATURE_SB_SAFEPOINT
-        sigset_t pending;
-        sigpending(&pending);
-        if (sigismember(&pending, SIG_STOP_FOR_GC)) {
-#ifdef LISP_FEATURE_DARWIN
-          /* sigwait is not reliable on macOS, but sigsuspend is. It unfortunately
-           * requires that the signal be delivered, so set a flag to ignore it.
-           * If you don't believe the preceding statement, try enabling the other
-           * branch of this #ifdef and running fcb-threads.impure.lisp which will
-           * sporadically fail with "Can't handle sig31 in non-lisp thread".
-           * So either sigpending was sometimes lying (hence we didn't try to clear
-           * the signal), or else sigwait did not dequeue the signal. Clearly the
-           * latter must be true, because if only the former were true, then we
-           * would also see the test fail with sigsuspend */
-          sigset_t blockmask;
-          sigfillset(&blockmask);
-          sigdelset(&blockmask, SIG_STOP_FOR_GC);
-          pthread_setspecific(ignore_stop_for_gc, (void*)1);
-          /* sigsuspend takes the mask of signals to block */
-          sigsuspend(&blockmask);
-          pthread_setspecific(ignore_stop_for_gc, 0);
-          sigpending(&pending);
-          if (sigismember(&pending, SIG_STOP_FOR_GC)) lose("clear stop-for-GC did not work");
-#else
-          int sig, rc;
-          /* sigwait takes the mask of signals to allow through */
-          rc = sigwait(&gc_sigset, &sig);
-          gc_assert(rc == 0 && sig == SIG_STOP_FOR_GC);
-#endif
-        }
-#endif
-#ifndef LISP_FEATURE_WIN32 // native threads have no signal mask
-        thread_sigmask(SIG_SETMASK, &scribble.oldset, 0);
-#endif
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
         init_thread_data scribble;
 
-#ifndef LISP_FEATURE_WIN32 // native threads have no signal maskk
-        block_deferrable_signals(&scribble.oldset);
-#endif
-#ifndef LISP_FEATURE_SB_SAFEPOINT
-        /* new-lisp-thread-trampoline doesn't like when the GC signal is blocked */
-        /* FIXME: could be done using a single call to pthread_sigmask
-           together with blocking the deferrable signals above. */
-        unblock_gc_stop_signal();
-#endif
-
-#if !defined(LISP_FEATURE_WIN32) && defined(LISP_FEATURE_C_STACK_IS_CONTROL_STACK)
-        /* On windows, arch_os_thread_init will take care of finding the
-         * stack. */
-        void *stack_addr;
-        size_t stack_size;
-# ifdef LISP_FEATURE_OPENBSD
-        stack_t stack;
-        pthread_stackseg_np(th->os_thread, &stack);
-        stack_size = stack.ss_size;
-        stack_addr = (void*)((size_t)stack.ss_sp - stack_size);
-# elif defined LISP_FEATURE_SUNOS
-        stack_t stack;
-        thr_stksegment(&stack);
-        stack_size = stack.ss_size;
-        stack_addr = (void*)((size_t)stack.ss_sp - stack_size);
-# elif defined(LISP_FEATURE_DARWIN)
-        stack_size = pthread_get_stacksize_np(th->os_thread);
-        stack_addr = (char*)pthread_get_stackaddr_np(th->os_thread) - stack_size;
-# else
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-#   if defined LISP_FEATURE_FREEBSD || defined LISP_FEATURE_DRAGONFLY
-        pthread_attr_get_np(th->os_thread, &attr);
-#   else
-        int pthread_getattr_np(pthread_t, pthread_attr_t *);
-        pthread_getattr_np(th->os_thread, &attr);
-#   endif
-        pthread_attr_getstack(&attr, &stack_addr, &stack_size);
-        pthread_attr_destroy(&attr);
-# endif
-        th->control_stack_start = stack_addr;
-        th->control_stack_end = (void *) (((uintptr_t) stack_addr) + stack_size);
-#endif
-
-        if(arch_os_thread_init(th)==0) {
-            /* FIXME: handle error */
-            lose("arch_os_thread_init failed");
-        }
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         csp_around_foreign_call(th) = (lispobj)&scribble;
 #endif
@@ -943,46 +855,12 @@ callback_wrapper_trampoline(
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
-        block_blockable_signals(0);
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
 #else
         set_thread_state(th, STATE_DEAD, 1);
 #endif
-#if !defined LISP_FEATURE_SB_SAFEPOINT
-        sigset_t pending;
-        sigpending(&pending);
-        if (sigismember(&pending, SIG_STOP_FOR_GC)) {
-#ifdef LISP_FEATURE_DARWIN
-          /* sigwait is not reliable on macOS, but sigsuspend is. It unfortunately
-           * requires that the signal be delivered, so set a flag to ignore it.
-           * If you don't believe the preceding statement, try enabling the other
-           * branch of this #ifdef and running fcb-threads.impure.lisp which will
-           * sporadically fail with "Can't handle sig31 in non-lisp thread".
-           * So either sigpending was sometimes lying (hence we didn't try to clear
-           * the signal), or else sigwait did not dequeue the signal. Clearly the
-           * latter must be true, because if only the former were true, then we
-           * would also see the test fail with sigsuspend */
-          sigset_t blockmask;
-          sigfillset(&blockmask);
-          sigdelset(&blockmask, SIG_STOP_FOR_GC);
-          pthread_setspecific(ignore_stop_for_gc, (void*)1);
-          /* sigsuspend takes the mask of signals to block */
-          sigsuspend(&blockmask);
-          pthread_setspecific(ignore_stop_for_gc, 0);
-          sigpending(&pending);
-          if (sigismember(&pending, SIG_STOP_FOR_GC)) lose("clear stop-for-GC did not work");
-#else
-          int sig, rc;
-          /* sigwait takes the mask of signals to allow through */
-          rc = sigwait(&gc_sigset, &sig);
-          gc_assert(rc == 0 && sig == SIG_STOP_FOR_GC);
-#endif
-        }
-#endif
-#ifndef LISP_FEATURE_WIN32 // native threads have no signal mask
-        thread_sigmask(SIG_SETMASK, &scribble.oldset, 0);
-#endif
+
         return;
     }
 
