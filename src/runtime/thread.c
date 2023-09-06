@@ -835,6 +835,18 @@ callback_wrapper_trampoline(
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
+#ifdef LISP_FEATURE_SB_SAFEPOINT
+        pop_gcing_safety(&scribble.safety);
+#else
+        set_thread_state(th, STATE_DEAD, 1);
+#endif
+
+        __attribute__((unused)) int lock_ret = mutex_acquire(&all_threads_lock);
+        gc_assert(lock_ret);
+        unlink_thread(th);
+        lock_ret = mutex_release(&all_threads_lock);
+        gc_assert(lock_ret);
+
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
         init_thread_data scribble;
