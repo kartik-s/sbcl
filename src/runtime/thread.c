@@ -923,6 +923,10 @@ callback_wrapper_trampoline(
         th->control_stack_end = (void *) (((uintptr_t) stack_addr) + stack_size);
 #endif
 
+        if(arch_os_thread_init(th)==0) {
+            /* FIXME: handle error */
+            lose("arch_os_thread_init failed");
+        }
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         csp_around_foreign_call(th) = (lispobj)&scribble;
 #endif
