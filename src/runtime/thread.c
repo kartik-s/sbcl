@@ -834,10 +834,42 @@ callback_wrapper_trampoline(
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
+        block_blockable_signals(0);
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
 #else
         set_thread_state(th, STATE_DEAD, 1);
+#endif
+#if !defined LISP_FEATURE_SB_SAFEPOINT
+        sigset_t pending;
+        sigpending(&pending);
+        if (sigismember(&pending, SIG_STOP_FOR_GC)) {
+#ifdef LISP_FEATURE_DARWIN
+          /* sigwait is not reliable on macOS, but sigsuspend is. It unfortunately
+           * requires that the signal be delivered, so set a flag to ignore it.
+           * If you don't believe the preceding statement, try enabling the other
+           * branch of this #ifdef and running fcb-threads.impure.lisp which will
+           * sporadically fail with "Can't handle sig31 in non-lisp thread".
+           * So either sigpending was sometimes lying (hence we didn't try to clear
+           * the signal), or else sigwait did not dequeue the signal. Clearly the
+           * latter must be true, because if only the former were true, then we
+           * would also see the test fail with sigsuspend */
+          sigset_t blockmask;
+          sigfillset(&blockmask);
+          sigdelset(&blockmask, SIG_STOP_FOR_GC);
+          pthread_setspecific(ignore_stop_for_gc, (void*)1);
+          /* sigsuspend takes the mask of signals to block */
+          sigsuspend(&blockmask);
+          pthread_setspecific(ignore_stop_for_gc, 0);
+          sigpending(&pending);
+          if (sigismember(&pending, SIG_STOP_FOR_GC)) lose("clear stop-for-GC did not work");
+#else
+          int sig, rc;
+          /* sigwait takes the mask of signals to allow through */
+          rc = sigwait(&gc_sigset, &sig);
+          gc_assert(rc == 0 && sig == SIG_STOP_FOR_GC);
+#endif
+        }
 #endif
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
@@ -850,10 +882,42 @@ callback_wrapper_trampoline(
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
+        block_blockable_signals(0);
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
 #else
         set_thread_state(th, STATE_DEAD, 1);
+#endif
+#if !defined LISP_FEATURE_SB_SAFEPOINT
+        sigset_t pending;
+        sigpending(&pending);
+        if (sigismember(&pending, SIG_STOP_FOR_GC)) {
+#ifdef LISP_FEATURE_DARWIN
+          /* sigwait is not reliable on macOS, but sigsuspend is. It unfortunately
+           * requires that the signal be delivered, so set a flag to ignore it.
+           * If you don't believe the preceding statement, try enabling the other
+           * branch of this #ifdef and running fcb-threads.impure.lisp which will
+           * sporadically fail with "Can't handle sig31 in non-lisp thread".
+           * So either sigpending was sometimes lying (hence we didn't try to clear
+           * the signal), or else sigwait did not dequeue the signal. Clearly the
+           * latter must be true, because if only the former were true, then we
+           * would also see the test fail with sigsuspend */
+          sigset_t blockmask;
+          sigfillset(&blockmask);
+          sigdelset(&blockmask, SIG_STOP_FOR_GC);
+          pthread_setspecific(ignore_stop_for_gc, (void*)1);
+          /* sigsuspend takes the mask of signals to block */
+          sigsuspend(&blockmask);
+          pthread_setspecific(ignore_stop_for_gc, 0);
+          sigpending(&pending);
+          if (sigismember(&pending, SIG_STOP_FOR_GC)) lose("clear stop-for-GC did not work");
+#else
+          int sig, rc;
+          /* sigwait takes the mask of signals to allow through */
+          rc = sigwait(&gc_sigset, &sig);
+          gc_assert(rc == 0 && sig == SIG_STOP_FOR_GC);
+#endif
+        }
 #endif
         return;
     }
