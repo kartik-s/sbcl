@@ -872,7 +872,7 @@ callback_wrapper_trampoline(
         }
 #endif
 #ifndef LISP_FEATURE_WIN32 // native threads have no signal mask
-        thread_sigmask(SIG_SETMASK, &scribble->oldset, 0);
+        thread_sigmask(SIG_SETMASK, &scribble.oldset, 0);
 #endif
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
@@ -923,7 +923,7 @@ callback_wrapper_trampoline(
         }
 #endif
 #ifndef LISP_FEATURE_WIN32 // native threads have no signal mask
-        thread_sigmask(SIG_SETMASK, &scribble->oldset, 0);
+        thread_sigmask(SIG_SETMASK, &scribble.oldset, 0);
 #endif
         return;
     }
