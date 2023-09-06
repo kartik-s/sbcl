@@ -865,7 +865,7 @@ callback_wrapper_trampoline(
 #else
         set_thread_state(th, STATE_DEAD, 1);
 #endif
-        __attribute__((unused)) int lock_ret = mutex_acquire(&all_threads_lock);
+        lock_ret = mutex_acquire(&all_threads_lock);
         gc_assert(lock_ret);
         unlink_thread(th);
         lock_ret = mutex_release(&all_threads_lock);
