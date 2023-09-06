@@ -879,7 +879,7 @@ callback_wrapper_trampoline(
         init_thread_data scribble;
 
 #ifndef LISP_FEATURE_WIN32 // native threads have no signal maskk
-        block_deferrable_signals(&scribble->oldset);
+        block_deferrable_signals(&scribble.oldset);
 #endif
 #ifndef LISP_FEATURE_SB_SAFEPOINT
         /* new-lisp-thread-trampoline doesn't like when the GC signal is blocked */
