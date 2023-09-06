@@ -463,13 +463,15 @@ unregister_thread(struct thread *th,
 {
     block_blockable_signals(0);
     gc_close_thread_regions(th, LOCK_PAGE_TABLE|CONSUME_REMAINDER);
+    if (scribble) {
 #ifdef LISP_FEATURE_SB_SAFEPOINT
-    if (scribble) pop_gcing_safety(&scribble->safety);
+        pop_gcing_safety(&scribble->safety);
 #else
-    /* This state change serves to "acknowledge" any stop-the-world
-     * signal received while the STOP_FOR_GC signal is blocked */
-    set_thread_state(th, STATE_DEAD, 1);
+        /* This state change serves to "acknowledge" any stop-the-world
+         * signal received while the STOP_FOR_GC signal is blocked */
+        set_thread_state(th, STATE_DEAD, 1);
 #endif
+    }
     /* SIG_STOP_FOR_GC is blocked and GC might be waiting for this
      * thread, but since we are either exiting lisp code as a lisp
      * thread that is dying, or exiting lisp code to return to
@@ -834,6 +836,8 @@ callback_wrapper_trampoline(
         }
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
+#else
+        set_thread_state(th, STATE_DEAD, 1);
 #endif
         return;
     } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
@@ -848,6 +852,8 @@ callback_wrapper_trampoline(
         }
 #ifdef LISP_FEATURE_SB_SAFEPOINT
         pop_gcing_safety(&scribble.safety);
+#else
+        set_thread_state(th, STATE_DEAD, 1);
 #endif
         return;
     }
