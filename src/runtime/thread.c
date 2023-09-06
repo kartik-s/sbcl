@@ -14,6 +14,7 @@
 #endif
 #include "sbcl.h"
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -78,6 +79,8 @@ pthread_mutex_t all_threads_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t recyclebin_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t in_gc_lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
+
+pthread_key_t foreign_thread_ever_lispified;
 
 #endif
 
@@ -326,6 +329,8 @@ char* thread_name_from_pthread(pthread_t pointer){
 }
 #endif
 
+static void detach_os_thread_no_scribble(void __attribute__((unused)) *ignored);
+
 void create_main_lisp_thread(lispobj function) {
 #ifdef LISP_FEATURE_WIN32
     InitializeCriticalSection(&all_threads_lock);
@@ -341,6 +346,9 @@ void create_main_lisp_thread(lispobj function) {
 #endif
 #if defined LISP_FEATURE_DARWIN && defined LISP_FEATURE_SB_THREAD
     pthread_key_create(&ignore_stop_for_gc, 0);
+#endif
+#if defined LISP_FEATURE_SB_THREAD
+    pthread_key_create(&foreign_thread_ever_lispified, detach_os_thread_no_scribble);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
@@ -456,7 +464,7 @@ unregister_thread(struct thread *th,
     block_blockable_signals(0);
     gc_close_thread_regions(th, LOCK_PAGE_TABLE|CONSUME_REMAINDER);
 #ifdef LISP_FEATURE_SB_SAFEPOINT
-    pop_gcing_safety(&scribble->safety);
+    if (scribble) pop_gcing_safety(&scribble->safety);
 #else
     /* This state change serves to "acknowledge" any stop-the-world
      * signal received while the STOP_FOR_GC signal is blocked */
@@ -789,6 +797,10 @@ static void detach_os_thread(init_thread_data *scribble)
 #endif
 }
 
+static void detach_os_thread_no_scribble(void __attribute__((unused)) *ignored) {
+    detach_os_thread(NULL);
+}
+
 #if defined(LISP_FEATURE_X86_64) && !defined(LISP_FEATURE_WIN32)
 extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
                                    struct thread* thread)
@@ -814,12 +826,29 @@ callback_wrapper_trampoline(
     if (!th) {                  /* callback invoked in non-lisp thread */
         init_thread_data scribble;
         attach_os_thread(&scribble);
+        pthread_setspecific(foreign_thread_ever_lispified, (void *) 1);
 
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
-        detach_os_thread(&scribble);
+#ifdef LISP_FEATURE_SB_SAFEPOINT
+        pop_gcing_safety(&scribble.safety);
+#endif
+        return;
+    } else if (pthread_getspecific(foreign_thread_ever_lispified)) {
+        init_thread_data scribble;
+
+#ifdef LISP_FEATURE_SB_SAFEPOINT
+        csp_around_foreign_call(th) = (lispobj)&scribble;
+#endif
+        WITH_GC_AT_SAFEPOINTS_ONLY()
+        {
+            funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
+        }
+#ifdef LISP_FEATURE_SB_SAFEPOINT
+        pop_gcing_safety(&scribble.safety);
+#endif
         return;
     }
 
