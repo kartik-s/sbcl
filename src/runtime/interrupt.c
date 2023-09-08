@@ -47,6 +47,8 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/ucontext.h>
+#include <unistd.h>
 #ifndef LISP_FEATURE_WIN32
 #include <sys/wait.h>
 #endif
@@ -1912,6 +1914,66 @@ extern void restore_sbcl_signals () {
     }
 }
 
+static void async_safe_itoa(uint64_t i, int base, char *buf, size_t buf_size)
+{
+  char *start = buf;
+  char *end = buf + buf_size;
+
+  do {
+    int digit = i % base;
+    *buf++ = digit + ((digit < 10) ? '0' : ('A' - 10));
+    i /= base;
+  } while (i && (buf < end - 1));
+
+  *buf = '\0';
+  end = buf - 1;
+
+  while (end > start) {
+      char tmp = *start;
+      *start++ = *end;
+      *end-- = tmp;
+  }
+}
+
+#define BUF_SIZE 1024
+#define ATOS_BIN "/usr/bin/atos"
+
+static void print_atos(void *addr)
+{
+  char parent_pid_str[BUF_SIZE];
+  char addr_str[BUF_SIZE];
+
+  async_safe_itoa((uint64_t) getpid(), 10, parent_pid_str, BUF_SIZE);
+  async_safe_itoa((uint64_t) addr, 16, addr_str, BUF_SIZE);
+
+  if (!fork()) {
+    execl(ATOS_BIN, ATOS_BIN, "-i", "-p", parent_pid_str, addr_str, (char *) NULL);
+    _exit(1);
+  } else {
+    wait(NULL);
+  }
+}
+
+#define MAX_FRAMES 64
+#define ECHO_BIN "/bin/echo"
+
+static void print_backtrace_from_context(ucontext_t *uc) {
+    uintptr_t *frame_pointer;
+    uintptr_t return_address;
+
+    // On ARM64, the frame pointer is in the x29 register
+    frame_pointer = (uintptr_t *) uc->uc_mcontext->__ss.__fp;
+    print_atos((void *) uc->uc_mcontext->__ss.__pc);
+
+    for (int i = 0; i < MAX_FRAMES && frame_pointer; ++i) {
+        return_address = *(frame_pointer + 1);  // return address is just above the frame pointer in memory
+        if (!return_address) break;
+
+        print_atos((void *) return_address);
+        frame_pointer = (uintptr_t *) *frame_pointer;  // get the previous frame pointer
+    }
+}
+
 static void
 low_level_handle_now_handler(int signal, siginfo_t *info, void *void_context)
 {
@@ -1940,6 +2002,9 @@ low_level_handle_now_handler(int signal, siginfo_t *info, void *void_context)
         (old_ll_sigactions[signal].sa_sigaction)(signal, info, context);
     } else {
 #ifdef LISP_FEATURE_SB_THREAD
+        block_blockable_signals(0);
+        ucontext_t *uc = context;
+        print_backtrace_from_context(uc);
         lose("Can't handle sig%d in non-lisp thread %p at @ %p",
              signal,
              // Casting to void* is a kludge - "technically" you can't assume that
