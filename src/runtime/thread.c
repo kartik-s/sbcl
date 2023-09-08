@@ -14,6 +14,12 @@
 #endif
 #include "sbcl.h"
 
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+#include <pthread.h>
+# if defined(LISP_FEATURE_DARWIN) && defined(LISP_FEATURE_GCC_TLS)
+#include <mach-o/dyld.h>
+# endif
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -282,6 +288,14 @@ void* read_current_thread() {
 extern pthread_key_t ignore_stop_for_gc;
 #endif
 
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+pthread_key_t foreign_thread_ever_lispified;
+static void detach_os_thread_thunk(void *th);
+# ifdef LISP_FEATURE_GCC_TLS
+__thread int foreign_thread_ever_lispified_p = 0;
+# endif
+#endif
+
 #if !defined COLLECT_GC_STATS && !defined STANDALONE_LDB && \
   defined LISP_FEATURE_LINUX && defined LISP_FEATURE_SB_THREAD && defined LISP_FEATURE_64_BIT
 #define COLLECT_GC_STATS
@@ -341,6 +355,9 @@ void create_main_lisp_thread(lispobj function) {
 #endif
 #if defined LISP_FEATURE_DARWIN && defined LISP_FEATURE_SB_THREAD
     pthread_key_create(&ignore_stop_for_gc, 0);
+#endif
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+    pthread_key_create(&foreign_thread_ever_lispified, detach_os_thread_thunk);
 #endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
@@ -789,6 +806,20 @@ static void detach_os_thread(init_thread_data *scribble)
 #endif
 }
 
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+static void detach_os_thread_thunk(void *th) {
+    ASSIGN_CURRENT_THREAD(th);
+    detach_os_thread(NULL);
+}
+
+# if defined(LISP_FEATURE_DARWIN) && defined(LISP_FEATURE_GCC_TLS)
+static void block_blockable_signals_thunk(void __attribute__((__unused__)) *obj_addr)
+{
+  block_blockable_signals(0);
+}
+# endif
+#endif
+
 #if defined(LISP_FEATURE_X86_64) && !defined(LISP_FEATURE_WIN32)
 extern void funcall_alien_callback(lispobj arg1, lispobj arg2, lispobj arg0,
                                    struct thread* thread)
@@ -815,13 +846,47 @@ callback_wrapper_trampoline(
         init_thread_data scribble;
         attach_os_thread(&scribble);
 
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+        th = get_sb_vm_thread();
+# if defined(LISP_FEATURE_DARWIN) && defined(LISP_FEATURE_GCC_TLS)
+        _tlv_atexit(block_blockable_signals_thunk, &current_thread);
+# endif
+        pthread_setspecific(foreign_thread_ever_lispified, (void *) th);
+# ifdef LISP_FEATURE_GCC_TLS
+        foreign_thread_ever_lispified_p = 1;
+# endif
+#endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
+#if defined(LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP)
+# if defined(LISP_FEATURE_SB_SAFEPOINT)
+        pop_gcing_safety(&scribble.safety);
+# endif
+#else
         detach_os_thread(&scribble);
+#endif
         return;
     }
+#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+# ifdef LISP_FEATURE_GCC_TLS
+    if (foreign_thread_ever_lispified_p) {
+# else
+    if (pthread_getspecific(foreign_thread_ever_lispified)) {
+# endif
+# ifdef LISP_FEATURE_SB_SAFEPOINT
+        init_thread_data scribble;
+
+        csp_around_foreign_call(th) = (lispobj) &scribble;
+# endif
+        WITH_GC_AT_SAFEPOINTS_ONLY()
+        {
+            funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
+        }
+        return;
+    }
+#endif
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */
@@ -1176,6 +1241,28 @@ void gc_stop_the_world()
             int state = get_thread_state(th);
             if (state == STATE_RUNNING) {
                 rc = pthread_kill(th->os_thread,SIG_STOP_FOR_GC);
+#if defined(LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP) && defined(LISP_FEATURE_DARWIN)
+                /* On Darwin, pthread_kill(thread, sig) returns ESRCH
+                 * after thread has exited but before the destructor
+                 * functions for its keys, if any, have finished
+                 * running[^1]. We thus assume that if we got back
+                 * ESRCH it was because gc_stop_the_world observed an
+                 * exited foreign callback thread in all_threads
+                 * before the thread finished running detach_os_thread
+                 * at destructor-time, which would have unlinked the
+                 * thread from all_threads, and we ignore the error.
+                 *
+                 * [^1] _pthread_exit enables the UT_NO_SIGMASK flag
+                 * on the underlying BSD thread via
+                 * __disable_threadsignal before calling the thread's
+                 * key destructors via
+                 * _pthread_tsd_cleanup. __pthread_kill returns ESRCH
+                 * if the target thread's UT_NO_SIGMASK flag is
+                 * asserted. See
+                 * https://github.com/apple-oss-distributions/xnu and
+                 * https://github.com/apple-oss-distributions/libpthread. */
+                if (rc == ESRCH) rc = 0;
+#endif
                 /* This used to bogusly check for ESRCH.
                  * I changed the ESRCH case to just fall into lose() */
                 if (rc) lose("cannot suspend thread %p: %d, %s",
