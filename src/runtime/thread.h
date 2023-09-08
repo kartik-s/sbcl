@@ -158,6 +158,9 @@ extern int dynamic_values_bytes;
 extern __thread struct thread *current_thread;
 # elif !defined LISP_FEATURE_WIN32
 extern pthread_key_t current_thread;
+#  ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+extern pthread_key_t foreign_thread_ever_lispified;
+#  endif
 #endif
 #endif
 
@@ -262,6 +265,26 @@ inline static int lisp_thread_p(os_context_t __attribute__((unused)) *context) {
     return current_thread != 0;
 # elif defined LISP_FEATURE_WIN32
     return TlsGetValue(OUR_TLS_INDEX) != 0;
+# elif defined LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+    /* Consider the following possible ordering of events:
+     *
+     * (1) A foreign callback thread exits.
+     * (2) The destructor for current_thread is called;
+     * pthread_getspecific(current_thread) now returns NULL.
+     * (3) Before the destructor for current_thread can call
+     * block_blockable_signals, another thread initiates a GC and
+     * sends this thread, which is still present in all_threads, a
+     * SIG_STOP_FOR_GC. The signal is delivered immediately.
+     * (4) In low_level_handle_now_handler, lisp_thread_p sees NULL
+     * for pthread_getspecific(current_thread), so we crash with a
+     * "Can't handle sig{12,31} in non-lisp thread" error.
+     *
+     * One way to avoid this is to also check for
+     * pthread_getspecific(foreign_thread_ever_lispified) below since
+     * it is still non-NULL at (3) because its destructor has not run
+     * yet. */
+    return (pthread_getspecific(current_thread) != NULL)
+        || (pthread_getspecific(foreign_thread_ever_lispified) != NULL);
 # else
     return pthread_getspecific(current_thread) != NULL;
 # endif
