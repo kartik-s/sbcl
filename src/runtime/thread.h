@@ -151,9 +151,7 @@ extern int dynamic_values_bytes;
 extern __thread struct thread *current_thread;
 # elif !defined LISP_FEATURE_WIN32
 extern pthread_key_t current_thread;
-#  ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
 extern pthread_key_t foreign_thread_ever_lispified;
-#  endif
 #endif
 #endif
 
@@ -258,7 +256,7 @@ inline static int lisp_thread_p(os_context_t __attribute__((unused)) *context) {
     return current_thread != 0;
 # elif defined LISP_FEATURE_WIN32
     return TlsGetValue(OUR_TLS_INDEX) != 0;
-# elif defined LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
+# else
     /* Consider the following possible ordering of events:
      *
      * (1) A foreign callback thread exits.
@@ -278,8 +276,6 @@ inline static int lisp_thread_p(os_context_t __attribute__((unused)) *context) {
      * yet. */
     return (pthread_getspecific(current_thread) != NULL)
         || (pthread_getspecific(foreign_thread_ever_lispified) != NULL);
-# else
-    return pthread_getspecific(current_thread) != NULL;
 # endif
 #elif defined(LISP_FEATURE_C_STACK_IS_CONTROL_STACK)
     char *csp = (char *)*os_context_sp_addr(context);

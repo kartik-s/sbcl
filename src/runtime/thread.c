@@ -14,12 +14,11 @@
 #endif
 #include "genesis/sbcl.h"
 
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
 #include <pthread.h>
-# if defined(LISP_FEATURE_DARWIN) && defined(LISP_FEATURE_GCC_TLS)
+#if defined(LISP_FEATURE_DARWIN) && defined(LISP_FEATURE_GCC_TLS)
 #include <mach-o/dyld.h>        /* for _tlv_atexit */
-# endif
 #endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -300,17 +299,15 @@ void* read_current_thread() {
 extern pthread_key_t ignore_stop_for_gc;
 #endif
 
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
 pthread_key_t foreign_thread_ever_lispified;
 static void detach_os_thread_thunk(void *th);
-# if !defined(LISP_FEATURE_WIN32)
+#ifndef LISP_FEATURE_WIN32
 static void block_blockable_signals_thunk(void __attribute__((unused)) *);
-# endif
-# ifdef LISP_FEATURE_GCC_TLS
+#endif
+#ifdef LISP_FEATURE_GCC_TLS
 /* This just exists so we can check if foreign_thread_ever_lispified
  * is set without calling pthread_getspecific. */
 __thread int foreign_thread_ever_lispified_p = 0;
-# endif
 #endif
 
 #if !defined COLLECT_GC_STATS && !defined STANDALONE_LDB && \
@@ -368,7 +365,6 @@ void create_main_lisp_thread(lispobj function) {
         lose("can't create initial thread");
     th->state_word.sprof_enable = 1;
 #if defined LISP_FEATURE_SB_THREAD && !defined LISP_FEATURE_GCC_TLS && !defined LISP_FEATURE_WIN32
-# ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
     /* Consider the following possible ordering of events:
      *
      * (1) A foreign callback thread exits.
@@ -389,16 +385,11 @@ void create_main_lisp_thread(lispobj function) {
      * One way to avoid this is to block SIG_STOP_FOR_GC in (2), which
      * we do below. */
     pthread_key_create(&current_thread, block_blockable_signals_thunk);
-# else
-    pthread_key_create(&current_thread, 0);
-# endif
 #endif
 #if defined LISP_FEATURE_DARWIN && defined LISP_FEATURE_SB_THREAD
     pthread_key_create(&ignore_stop_for_gc, 0);
 #endif
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
     pthread_key_create(&foreign_thread_ever_lispified, detach_os_thread_thunk);
-#endif
 #if defined(LISP_FEATURE_X86) || defined(LISP_FEATURE_X86_64)
     __attribute__((unused)) lispobj *args = NULL;
 #endif
@@ -513,14 +504,12 @@ unregister_thread(struct thread *th,
     block_blockable_signals(0);
     gc_close_thread_regions(th, LOCK_PAGE_TABLE|CONSUME_REMAINDER);
 #ifdef LISP_FEATURE_SB_SAFEPOINT
-# ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
     /* If unregister_thread is being called by an exiting foreign
      * callback thread, which passes in NULL for scribble, then skip
      * calling pop_gcing_safety because callback_wrapper_trampoline
      * already did on the last foreign callback invocation. */
     if (scribble)
-# endif
-    pop_gcing_safety(&scribble->safety);
+        pop_gcing_safety(&scribble->safety);
 #else
     /* This state change serves to "acknowledge" any stop-the-world
      * signal received while the STOP_FOR_GC signal is blocked */
@@ -853,7 +842,6 @@ static void detach_os_thread(init_thread_data *scribble)
 #endif
 }
 
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
 static void detach_os_thread_thunk(void *th)
 {
     /* If the destructor for foreign_thread_ever_lispified runs after
@@ -864,12 +852,11 @@ static void detach_os_thread_thunk(void *th)
     detach_os_thread(NULL);
 }
 
-# if !defined(LISP_FEATURE_WIN32)
+#ifndef LISP_FEATURE_WIN32
 static void block_blockable_signals_thunk(void __attribute__((__unused__)) *unused)
 {
   block_blockable_signals(0);
 }
-# endif
 #endif
 
 #if defined(LISP_FEATURE_X86_64) && !defined(LISP_FEATURE_WIN32)
@@ -898,12 +885,11 @@ callback_wrapper_trampoline(
         init_thread_data scribble;
         attach_os_thread(&scribble);
 
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
         th = get_sb_vm_thread();
         pthread_setspecific(foreign_thread_ever_lispified, (void *) th);
-# ifdef LISP_FEATURE_GCC_TLS
+#ifdef LISP_FEATURE_GCC_TLS
         foreign_thread_ever_lispified_p = 1;
-#  ifdef LISP_FEATURE_DARWIN
+# ifdef LISP_FEATURE_DARWIN
         /* On macOS >=13.0, the value of current_thread on a foreign
          * callback thread is zeroed after the thread exits but before
          * the destructor for foreign_thread_ever_lispified is
@@ -968,42 +954,35 @@ callback_wrapper_trampoline(
          * [^4] dyld/dyld/DyldRuntimeState.cpp: RuntimeState::_finalizeListTLV
          * [^5] dyld/dyld/DyldRuntimeState.cpp: RuntimeState::initialize */
         _tlv_atexit(block_blockable_signals_thunk, &current_thread);
-#  endif
 # endif
 #endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
-#if defined(LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP)
-# if defined(LISP_FEATURE_SB_SAFEPOINT)
+#if defined(LISP_FEATURE_SB_SAFEPOINT)
         /* attach_os_thread calls push_gcing_safety, so we undo it
          * here (this normally happens in unregister_thread) */
         pop_gcing_safety(&scribble.safety);
-# endif
-#else
-        detach_os_thread(&scribble);
 #endif
         return;
     }
-#ifdef LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP
-# ifdef LISP_FEATURE_GCC_TLS
+#ifdef LISP_FEATURE_GCC_TLS
     if (foreign_thread_ever_lispified_p) {
-# else
+#else
     if (pthread_getspecific(foreign_thread_ever_lispified)) {
-# endif
-# ifdef LISP_FEATURE_SB_SAFEPOINT
+#endif
+#ifdef LISP_FEATURE_SB_SAFEPOINT
         init_thread_data scribble;
 
         csp_around_foreign_call(th) = (lispobj) &scribble;
-# endif
+#endif
         WITH_GC_AT_SAFEPOINTS_ONLY()
         {
             funcall3(StaticSymbolFunction(ENTER_FOREIGN_CALLBACK), arg0,arg1,arg2);
         }
         return;
     }
-#endif
 
 #ifdef LISP_FEATURE_WIN32
     /* arg2 is the pointer to a return value, which sits on the stack */
@@ -1381,7 +1360,7 @@ void gc_stop_the_world()
             int state = get_thread_state(th);
             if (state == STATE_RUNNING) {
                 rc = pthread_kill(th->os_thread,SIG_STOP_FOR_GC);
-#if defined(LISP_FEATURE_FCB_LAZY_THREAD_CLEANUP) && defined(LISP_FEATURE_DARWIN)
+#ifdef LISP_FEATURE_DARWIN
                 /* On Darwin, pthread_kill(thread, sig) returns ESRCH
                  * after thread has exited but before the destructor
                  * functions for its keys, if any, have finished
