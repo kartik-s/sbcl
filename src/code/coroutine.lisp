@@ -266,9 +266,6 @@
   (alien-stack nil :type (or (simple-array (unsigned-byte 32) (*)) null))
   (alien-stack-size 0 :type (unsigned-byte 29))
   (alien-stack-pointer 0 :type (unsigned-byte 32))
-  ;; Eval-stack
-  (eval-stack nil :type (or (simple-array t (*)) null))
-  (eval-stack-top 0 :type fixnum)
   ;;
   ;; Interrupt contexts
   (interrupt-contexts nil :type (or (simple-array (unsigned-byte 32) (*))
@@ -282,46 +279,6 @@
 
 (declaim (type (or stack-group null) *initial-stack-group*))
 (defvar *initial-stack-group* nil)
-
-;;; Process defstruct is up here because stack group functions refer
-;;; to process slots in assertions, but are also compiled at high
-;;; optimization... so if the process structure changes, all hell
-;;; could break loose.
-
-(defstruct (process
-            (:constructor %make-process)
-            (:predicate processp)
-            (:print-function
-             (lambda (process stream depth)
-               (declare (type process process) (stream stream) (ignore depth))
-               (print-unreadable-object (process stream :identity t)
-                 (format stream "Process ~a" (process-name process))))))
-  (name "Anonymous" :type simple-base-string)
-  (state :killed :type (member :killed :active :inactive))
-  (%whostate nil :type (or null simple-base-string))
-  (initial-function nil :type (or null function))
-  (initial-args nil :type list)
-  (wait-function nil :type (or null function))
-  (wait-function-args nil :type list)
-  (%run-reasons nil :type list)
-  (%arrest-reasons nil :type list)
-  ;; The real time after which the wait will timeout.
-  (wait-timeout nil :type (or null double-float))
-  (wait-return-value nil :type t)
-  (interrupts '() :type list)
-  (stack-group nil :type (or null stack-group))
-  ;;
-  ;; The real and run times when the current process was last
-  ;; scheduled or yielded.
-  (scheduled-real-time (get-real-time) :type double-float)
-  (scheduled-run-time (get-run-time) :type double-float)
-  ;;
-  ;; Accrued real and run times in seconds.
-  (%real-time 0d0 :type double-float)
-  (%run-time 0d0 :type double-float)
-  (property-list nil :type list)
-  (%return-values nil :type list)
-  (initial-bindings nil :type list))
 
 
 ;;; Init-Stack-Groups -- Interface
