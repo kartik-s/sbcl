@@ -600,7 +600,8 @@ during backtrace.
 
   ;; These aren't accessed (much) from Lisp, so don't really care
   ;; if it takes a 4-byte displacement.
-  (alien-stack-start :c-type "lispobj *" :pointer t)
+  (alien-stack-start :c-type "lispobj *" :pointer t
+                     :special *alien-stack-start*)
   (binding-stack-start :c-type "lispobj *" :pointer t
                        :special *binding-stack-start*)
 
