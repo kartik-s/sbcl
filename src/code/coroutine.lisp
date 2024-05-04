@@ -142,7 +142,7 @@
       (declare (type (unsigned-byte 29) binding index))
       (setf (sb-sys:sap-ref-sap (sb-sys:int-sap binding-stack) binding)
             (sb-sys:int-sap (sb-kernel:get-lisp-obj-address
-                          (aref new-binding-stack index))))))
+                             (aref new-binding-stack index))))))
   (values))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -174,7 +174,7 @@
       (declare (type (unsigned-byte 29) index))
       (setf (aref save-stack index)
             (sb-sys:sap-ref-32 (sb-sys:int-sap *alien-stack-top*)
-                            (* 4 (- (1+ index))))))
+                               (* 4 (- (1+ index))))))
     (values save-stack vector-size alien-stack)))
 
 (defun restore-alien-stack (save-stack size alien-stack)
@@ -737,8 +737,8 @@
 
 ;;;; VOPs
 
-(defknown control-stack-fork ((simple-array (unsigned-byte 32) (*)) t)
-  (member t nil))
+(sb-c:defknown control-stack-fork ((simple-array (unsigned-byte 32) (*)) t)
+    (member t nil))
 
 (define-vop (control-stack-fork)
   (:policy :fast-safe)
@@ -753,85 +753,85 @@
   (:temporary (:sc unsigned-reg :from (:eval 0) :to (:eval 1)) temp)
   (:save-p t)
   (:generator 25
-    (inst cmp inherit nil-value)
-    (inst jmp :e FRESH-STACK)
+              (inst cmp inherit nil-value)
+              (inst jmp :e FRESH-STACK)
 
-    ;; Child inherits the stack of the parent.
+              ;; Child inherits the stack of the parent.
 
-    ;; Setup the return context.
-    (inst push (make-fixup nil :code-object return))
-    (inst push ebp-tn)
-    ;; Save the stack.
-    (inst xor index index)
-    ;; First the stack-pointer.
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-                       :disp (- (* sb-vm:vector-data-offset sb-vm:n-word-bytes)
-                                sb-vm:other-pointer-type))
-          esp-tn)
-    (inst inc index)
-    (load-foreign-data-symbol stack "control_stack_end")
-    (inst mov stack (make-ea :dword :base stack))
-    (inst jmp-short LOOP)
+              ;; Setup the return context.
+              (inst push (make-fixup nil :code-object return))
+              (inst push ebp-tn)
+              ;; Save the stack.
+              (inst xor index index)
+              ;; First the stack-pointer.
+              (inst mov (make-ea :dword :base save-stack :index index :scale 4
+                                        :disp (- (* sb-vm:vector-data-offset sb-vm:n-word-bytes)
+                                                 sb-vm:other-pointer-type))
+                    esp-tn)
+              (inst inc index)
+              (load-foreign-data-symbol stack "control_stack_end")
+              (inst mov stack (make-ea :dword :base stack))
+              (inst jmp-short LOOP)
 
-    FRESH-STACK
-    ;; Child has a fresh control stack.
+              FRESH-STACK
+              ;; Child has a fresh control stack.
 
-    ;; Setup the return context.
-    (inst push (make-fixup nil :code-object return))
-    (load-foreign-data-symbol stack "control_stack_end")
-    (inst mov stack (make-ea :dword :base stack))
-    ;; New FP is the Top of the stack.
-    (inst push stack)
-    ;; Save the stack.
-    (inst xor index index)
-    ;; First save the adjusted stack-pointer.
-    (inst sub stack ebp-tn)
-    (inst add stack esp-tn)
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-                       :disp (- (* vm:vector-data-offset vm:word-bytes)
-                                vm:other-pointer-type))
-          stack)
-    ;; Save the current frame, replacing the OCFP and RA by 0.
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-                       :disp (- (* (+ vm:vector-data-offset 1) vm:word-bytes)
-                                vm:other-pointer-type))
-          0)
-    ;; Save 0 for the OCFP.
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-                       :disp (- (* (+ vm:vector-data-offset 2) vm:word-bytes)
-                                vm:other-pointer-type))
-          0)
-    (inst add index 3)
-    ;; Copy the remainder of the frame, skiping the OCFP and RA which
-    ;; are saved above.
-    (inst lea stack (make-ea :byte :base ebp-tn :disp -8))
+              ;; Setup the return context.
+              (inst push (make-fixup nil :code-object return))
+              (load-foreign-data-symbol stack "control_stack_end")
+              (inst mov stack (make-ea :dword :base stack))
+              ;; New FP is the Top of the stack.
+              (inst push stack)
+              ;; Save the stack.
+              (inst xor index index)
+              ;; First save the adjusted stack-pointer.
+              (inst sub stack ebp-tn)
+              (inst add stack esp-tn)
+              (inst mov (make-ea :dword :base save-stack :index index :scale 4
+                                        :disp (- (* vm:vector-data-offset vm:word-bytes)
+                                                 vm:other-pointer-type))
+                    stack)
+              ;; Save the current frame, replacing the OCFP and RA by 0.
+              (inst mov (make-ea :dword :base save-stack :index index :scale 4
+                                        :disp (- (* (+ vm:vector-data-offset 1) vm:word-bytes)
+                                                 vm:other-pointer-type))
+                    0)
+              ;; Save 0 for the OCFP.
+              (inst mov (make-ea :dword :base save-stack :index index :scale 4
+                                        :disp (- (* (+ vm:vector-data-offset 2) vm:word-bytes)
+                                                 vm:other-pointer-type))
+                    0)
+              (inst add index 3)
+              ;; Copy the remainder of the frame, skiping the OCFP and RA which
+              ;; are saved above.
+              (inst lea stack (make-ea :byte :base ebp-tn :disp -8))
 
-    LOOP
-    (inst cmp stack esp-tn)
-    (inst jmp :le stack-save-done)
-    (inst sub stack 4)
-    (inst mov temp (make-ea :dword :base stack))
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-                       :disp (- (* vm:vector-data-offset vm:word-bytes)
-                                vm:other-pointer-type))
-          temp)
-    (inst inc index)
-    (inst jmp-short LOOP)
+              LOOP
+              (inst cmp stack esp-tn)
+              (inst jmp :le stack-save-done)
+              (inst sub stack 4)
+              (inst mov temp (make-ea :dword :base stack))
+              (inst mov (make-ea :dword :base save-stack :index index :scale 4
+                                        :disp (- (* vm:vector-data-offset vm:word-bytes)
+                                                 vm:other-pointer-type))
+                    temp)
+              (inst inc index)
+              (inst jmp-short LOOP)
 
-    RETURN
-    ;; Stack already clean if it reaches here. Parent returns NIL.
-    (inst mov child nil-value)
-    (inst jmp-short DONE)
+              RETURN
+              ;; Stack already clean if it reaches here. Parent returns NIL.
+              (inst mov child nil-value)
+              (inst jmp-short DONE)
 
-    STACK-SAVE-DONE
-    ;; Cleanup the stack
-    (inst add esp-tn 8)
-    ;; Child returns T.
-    (load-symbol child t)
-    DONE))
+              STACK-SAVE-DONE
+              ;; Cleanup the stack
+              (inst add esp-tn 8)
+              ;; Child returns T.
+              (load-symbol child t)
+              DONE))
 
-(defknown control-stack-resume ((simple-array (unsigned-byte 32) (*))
-                                (simple-array (unsigned-byte 32) (*)))
+(sb-c:defknown control-stack-resume ((simple-array (unsigned-byte 32) (*))
+                                     (simple-array (unsigned-byte 32) (*)))
     (values))
 
 (define-vop (control-stack-resume)
@@ -903,7 +903,7 @@
               RETURN))
 
 
-(defknown control-stack-return ((simple-array (unsigned-byte 32) (*)))
+(sb-c:defknown control-stack-return ((simple-array (unsigned-byte 32) (*)))
     (values))
 
 (define-vop (control-stack-return)
