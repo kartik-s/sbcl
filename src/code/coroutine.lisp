@@ -4,7 +4,6 @@
 
 (in-package "SB-COROUTINE")
 
-
 (declaim (type (simple-array (or null (simple-array (unsigned-byte 32) (*)))
                              (*)) *control-stacks*))
 (defvar *control-stacks*
@@ -22,21 +21,14 @@
                  (format stream "Coroutine ~a, ~a"
                          (coroutine-name coroutine)
                          (coroutine-state coroutine))))))
-  ;; Must have a name.
   (name "Anonymous" :type simple-base-string)
-  ;; State: :active or :inactive.
   (state :inactive :type (member :active :inactive))
-  ;; The control stack; an index into *control-stacks*.
   (control-stack-id nil :type (or sb-kernel::index null))
-  ;; Current catch block, on the control stack.
   (current-catch-block 0 :type fixnum)
-  ;; Unwind protect block, on the control stack.
   (current-unwind-protect-block 0 :type fixnum)
-  ;; Alien stack
   (alien-stack nil :type (or (simple-array (unsigned-byte 32) (*)) null))
   (alien-stack-size 0 :type (unsigned-byte 29))
   (alien-stack-pointer 0 :type (unsigned-byte 32))
-  ;; Resumer
   (resumer nil :type (or coroutine null)))
 
 (declaim (type (or coroutine null) *current-coroutine*))
