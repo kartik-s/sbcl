@@ -1,58 +1,16 @@
-;;; **********************************************************************
-;;;
-;;; Stack-group  support for SBCL x86.
-;;;
-
 (defpackage "SB-COROUTINE"
   (:documentation "Coroutines!!!!!!")
   (:use "CL"))
 
 (in-package "SB-COROUTINE")
 
-#+nil
-(defpackage* "SB-FASL"
-    (:documentation "private: stuff related to FASL load/dump logic (and GENESIS)")
-  (:use "CL" "SB-ALIEN" "SB-ASSEM" "SB-BIGNUM" "SB-C"
-        "SB-EXT" "SB-INT" "SB-KERNEL" "SB-SYS")
-  (:import-from "SB-VM" "+FIXUP-KINDS+")
-  (:import-from "SB-IMPL" "FIND-OR-MAYBE-MAKE-DEFERRED-PACKAGE" "WITH-LOADER-PACKAGE-NAMES")
-  (:export "*ASSEMBLER-ROUTINES*"
-           "GET-ASM-ROUTINE"
-           "+BACKEND-FASL-FILE-IMPLEMENTATION+"
-           "*FASL-FILE-TYPE*"
-           "CLOSE-FASL-OUTPUT"
-           "DUMP-ASSEMBLER-ROUTINES"
-           "DUMP-FOP" "DUMP-OBJECT"
-           "FASL-CONSTANT-ALREADY-DUMPED-P"
-           "+FASL-FILE-VERSION+"
-           "FASL-DUMP-COMPONENT"
-           "FASL-DUMP-LOAD-TIME-VALUE-LAMBDA"
-           "FASL-DUMP-PARTIAL-SOURCE-INFO"
-           "FASL-DUMP-SOURCE-INFO" "FASL-DUMP-TOPLEVEL-LAMBDA-CALL"
-           "FASL-NOTE-HANDLE-FOR-CONSTANT"
-           "FASL-OUTPUT" "FASL-OUTPUT-P"
-           "FASL-OUTPUT-ENTRY-TABLE" "FASL-OUTPUT-STREAM"
-           "FASL-VALIDATE-STRUCTURE"
-           "FASL-NOTE-INSTANCE-SAVES-SLOTS"
-           "*!LOAD-TIME-VALUES*"
-           "OPEN-FASL-OUTPUT"
-           "*!COLD-TOPLEVELS*"
-           "COLD-CONS" "COLD-INTERN" "COLD-PUSH"))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;
-
-;;; The control stacks need special handling on the x86 as they
-;;; contain conservative roots. When placed in the *control-stacks*
-;;; vector they will be scavenged for conservative roots by the
-;;; garbage collector.
 (declaim (type (simple-array (or null (simple-array (unsigned-byte 32) (*)))
                              (*)) *control-stacks*))
 (defvar *control-stacks*
   (make-array 0 :element-type '(or null (unsigned-byte 32))
                 :initial-element nil))
 
-;;; coroutine structure.
 (defstruct (coroutine
             (:constructor %make-coroutine)
             (:print-function
@@ -81,7 +39,6 @@
   ;; Resumer
   (resumer nil :type (or coroutine null)))
 
-;;; The current stack group.
 (declaim (type (or coroutine null) *current-coroutine*))
 (defvar *current-coroutine* nil)
 
