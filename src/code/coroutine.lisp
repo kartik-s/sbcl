@@ -421,7 +421,7 @@
 ;;; group. Control may be transfer to the child by stack-group-resume
 ;;; and it executes the initial-function.
 ;;;
-(defmacro sigmask (&rest signals)
+(defun sigmask (&rest signals)
   "Returns a mask given a set of signals."
   (apply #'logior
          (mapcar #'(lambda (signal)
@@ -497,7 +497,7 @@
                (multiple-value-bind (binding-stack binding-stack-size)
                    (save-binding-stack #())
                  (rebind-binding-stack)
-                 (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs)
+                 (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs nil)
                  ;; Save the Alien stack
                  (multiple-value-bind (alien-stack alien-stack-size
                                        alien-stack-pointer)
@@ -604,7 +604,7 @@
                      (stack-group-binding-stack resumer)
                      (stack-group-binding-stack-size resumer))
                     (rebind-binding-stack)
-                    (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs))
+                    (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs nil))
                   ;; Misc stacks.
                   (setf sb-kernel::*current-catch-block*
                         (stack-group-current-catch-block resumer))
@@ -692,7 +692,8 @@
       ;; signals are blocked.
       (let ((old-sigs (sb-unix::pthread-sigmask
                        sb-unix::SIG_BLOCK
-                       (sigmask sb-unix:sigint sb-unix:sigalrm))))
+                       (sigmask sb-unix:sigint sb-unix:sigalrm)
+                       nil)))
         (declare (type (unsigned-byte 32) old-sigs))
         (unbind-binding-stack)
         (multiple-value-bind (stack size)
@@ -703,7 +704,7 @@
                                (stack-group-binding-stack-size
                                 new-stack-group))
         (rebind-binding-stack)
-        (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs))
+        (sb-unix::pthread-sigmask sb-unix::SIG_SETMASK old-sigs nil))
 
       ;; Restore the interrupt-contexts.
       (restore-interrupt-contexts
