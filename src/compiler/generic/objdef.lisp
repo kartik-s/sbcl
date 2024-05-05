@@ -638,7 +638,8 @@ during backtrace.
   ;; pointer.  This is also used on threaded x86oids to allow LDB to
   ;; print an approximation of the CSP as needed.
   #+sb-thread
-  (control-stack-pointer :c-type "lispobj *")
+  (control-stack-pointer :c-type "lispobj *"
+                         :special *control-stack-pointer*)
   (card-table)
 
   ;; A few extra thread-local allocation buffers for special purposes
