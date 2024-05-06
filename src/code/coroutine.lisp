@@ -1,7 +1,6 @@
 (in-package "SB-VM")
 
-(export 'control-stack-fork)
-(defknown control-stack-fork ((simple-array (unsigned-byte 64) (*)) )
+(defknown control-stack-fork ((simple-array (unsigned-byte 64) (*)))
   (member t nil))
 
 (define-vop (control-stack-fork)
@@ -11,56 +10,57 @@
   (:arg-types simple-array-unsigned-byte-64)
   (:results (child :scs (descriptor-reg)))
   (:result-types t)
-  (:temporary (:sc unsigned-reg :from (:eval 0) :to (:eval 1)) index)
-  (:temporary (:sc unsigned-reg :from (:eval 0) :to (:eval 1)) stack)
-  (:temporary (:sc unsigned-reg :from (:eval 0) :to (:eval 1)) temp)
+  (:temporary (:sc unsigned-reg) index)
+  (:temporary (:sc unsigned-reg) stack)
+  (:temporary (:sc unsigned-reg) temp)
+  (:temporary (:sc unsigned-reg) temp2)
   (:save-p t)
   (:generator 25
     ;; Setup the return context.             
     (inst adr temp return)
     (inst str temp (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
-    (load-foreign-symbol stack "control_stack_end" :dataref t)
+    (loadw stack thread-tn thread-control-stack-end-slot)
     (inst ldr stack (@ stack))
     ;; New FP is the Top of the stack.
     (inst str stack (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
     ;; Save the stack.
-    (inst xor index index)
+    (move index zr-tn)
     ;; First save the adjusted stack-pointer.
-    (inst add stack cfp-tn)
-    (inst sub stack csp-tn)
+    (inst add stack stack cfp-tn)
+    (inst sub stack stack csp-tn)
     (inst add temp save-stack (lsl index word-shift))
     (storew stack temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
     ;; Save the current frame, replacing the OCFP and RA by 0.
-    (storew 0 temp (+ 1 sb-vm:vector-data-offset) sb-vm:other-pointer-lowtag)
+    (storew zr-tn temp (+ 1 sb-vm:vector-data-offset) sb-vm:other-pointer-lowtag)
     ;; Save 0 for the OCFP.
-    (storew 0 temp (+ 2 sb-vm:vector-data-offset) sb-vm:other-pointer-lowtag)
+    (storew zr-tn temp (+ 2 sb-vm:vector-data-offset) sb-vm:other-pointer-lowtag)
     (inst add index index 3)
     ;; Copy the remainder of the frame, skiping the OCFP and RA which
     ;; are saved above.
     (inst ldr stack (@ cfp-tn (* -2 sb-vm:n-word-bytes)))
 
     LOOP
-    (inst cmp stack esp-tn)
-    (inst jmp :le stack-save-done)
-    (inst sub stack 4)
-    (inst mov temp (make-ea :dword :base stack))
-    (inst mov (make-ea :dword :base save-stack :index index :scale 4
-		       :disp (- (* vm:vector-data-offset vm:word-bytes)
-				vm:other-pointer-type))
-	  temp)
-    (inst inc index)
-    (inst jmp-short LOOP)
+    (inst cmp stack csp-tn)
+    (inst b :le stack-save-done)
+    (inst add stack stack sb-vm:n-word-bytes)
+    (inst ldr temp (@ stack))
+    (inst add temp2 save-stack (lsl index word-shift))
+    (storew stack temp2 sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst add index index 1)
+    (inst adr temp2 LOOP)
+    (inst br temp2)
     
     RETURN
     ;; Stack already clean if it reaches here. Parent returns NIL.
     (inst mov child nil-value)
-    (inst jmp-short DONE)
+    (inst adr temp2 DONE)
+    (inst br temp2)
     
     STACK-SAVE-DONE
     ;; Cleanup the stack
-    (inst add esp-tn 8)
+    (inst add csp-tn csp-tn (* 2 sb-vm:n-word-bytes))
     ;; Child returns T.
     (load-symbol child t)
     DONE))
@@ -107,7 +107,6 @@
                  (format stream "Coroutine ~a, ~a"
                          (sb-kernel:get-lisp-obj-address coroutine)
                          (coroutine-state coroutine))))))
-  trampoline
   (state :inactive :type (member :active :inactive))
   (control-stack-id nil :type (or sb-kernel::index null))
   (current-catch-block 0 :type fixnum)
@@ -173,19 +172,7 @@
           (multiple-value-bind (control-stack control-stack-id)
               (allocate-control-stack)
             (setq child-coroutine (allocate-new-coroutine control-stack-id))
-            (let ((trampoline
-                    (lambda ()
-                      (unwind-protect
-                           (funcall initial-function)
-                        (format t "uh oh the stack unwound!!!!! uh oh")))))
-              (format t "~a~%" (sb-vm:simple-fun-entry-sap trampoline))
-              (disassemble trampoline)
-              (setf (aref control-stack 0)
-                    (+ (sb-kernel:get-lisp-obj-address control-stack)
-                       (* 2 sb-vm:n-word-bytes)))
-              (sb-sys:with-pinned-objects (trampoline)
-                (setf (aref contronl-stack 1)
-                      (sb-sys:sap-int (sb-vm:simple-fun-entry-sap trampoline))))))))
+            (sb-vm::control-stack-fork control-stack))))
       child-coroutine)))
 
 (defun coroutine-resume (resumee)
