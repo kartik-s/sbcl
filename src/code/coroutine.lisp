@@ -16,12 +16,13 @@
   (:temporary (:sc unsigned-reg) temp2)
   (:save-p t)
   (:generator 25
-    ;; Setup the return context.             
+    ;; Setup the return context.
     (inst adr temp return)
     (inst str temp (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
-    (loadw stack thread-tn thread-control-stack-end-slot)
-    (inst ldr stack (@ stack))
+
+    (loadw stack thread-tn thread-control-stack-start-slot)
+
     ;; New FP is the Top of the stack.
     (inst str stack (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
@@ -39,28 +40,29 @@
     (inst add index index 3)
     ;; Copy the remainder of the frame, skiping the OCFP and RA which
     ;; are saved above.
-    (inst ldr stack (@ cfp-tn (* -2 sb-vm:n-word-bytes)))
+
+    (format t "~a" stack)
+
+    (inst add stack cfp-tn (* 2 sb-vm:n-word-bytes))
 
     LOOP
     (inst cmp stack csp-tn)
-    (inst b :le stack-save-done)
+    (inst b :ge stack-save-done)
     (inst add stack stack sb-vm:n-word-bytes)
     (inst ldr temp (@ stack))
     (inst add temp2 save-stack (lsl index word-shift))
-    (storew stack temp2 sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (storew temp temp2 sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
     (inst add index index 1)
-    (inst adr temp2 LOOP)
-    (inst br temp2)
+    (inst b LOOP)
     
     RETURN
     ;; Stack already clean if it reaches here. Parent returns NIL.
-    (inst mov child nil-value)
-    (inst adr temp2 DONE)
-    (inst br temp2)
+    (move child null-tn)
+    (inst b DONE)
     
     STACK-SAVE-DONE
     ;; Cleanup the stack
-    (inst add csp-tn csp-tn (* 2 sb-vm:n-word-bytes))
+    (inst sub csp-tn csp-tn (* 2 sb-vm:n-word-bytes))
     ;; Child returns T.
     (load-symbol child t)
     DONE))
@@ -172,7 +174,7 @@
           (multiple-value-bind (control-stack control-stack-id)
               (allocate-control-stack)
             (setq child-coroutine (allocate-new-coroutine control-stack-id))
-            (sb-vm::control-stack-fork control-stack))))
+            (print (sb-vm::control-stack-fork control-stack)))))
       child-coroutine)))
 
 (defun coroutine-resume (resumee)
