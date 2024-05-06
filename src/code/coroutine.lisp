@@ -85,6 +85,77 @@
               (inst ldr jump-addr (@ csp-tn (* -1 sb-vm:n-word-bytes)))
               (inst ret jump-addr)))
 
+(defknown control-stack-resume ((simple-array (unsigned-byte 64) (*))
+				(simple-array (unsigned-byte 64) (*)))
+  (values))
+
+(define-vop (control-stack-resume)
+  (:policy :fast-safe)
+  (:translate control-stack-resume)
+  (:args (save-stack :scs (descriptor-reg) :to :result)
+	 (new-stack :scs (descriptor-reg) :to :result))
+  (:arg-types simple-array-unsigned-byte-64 simple-array-unsigned-byte-64)
+  (:temporary (:sc unsigned-reg) index)
+  (:temporary (:sc unsigned-reg) stack)
+  (:temporary (:sc unsigned-reg) temp)
+  (:save-p t)
+  (:generator 25
+    ;; Setup the return context.
+    (inst adr temp return)
+    (inst str temp (@ csp-tn))
+    (inst add csp-tn csp-tn sb-vm:n-word-bytes)
+
+    (inst str cfp-tn (@ csp-tn))
+    (inst add csp-tn csp-tn sb-vm:n-word-bytes)
+    ;; Save the stack.
+    (move index zr-tn)
+    ;; First the stack-pointer.
+    (inst add temp save-stack (lsl index word-shift))
+    (storew csp-tn temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst add index index 1)
+    (loadw stack thread-tn thread-control-stack-start-slot)
+
+    LOOP
+    (inst cmp stack csp-tn)
+    (inst b :ge STACK-SAVE-DONE)
+    (inst add stack stack sb-vm:n-word-bytes)
+    (inst ldr temp (@ stack))
+    (inst add temp2 save-stack (lsl index word-shift))
+    (storew temp temp2 sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst add index index 1)
+    (inst b LOOP)
+
+    STACK-SAVE-DONE
+    ;; Cleanup the stack
+    (inst sub csp-tn csp-tn (* 2 sb-vm:n-word-bytes))
+
+    ;; Restore the new-stack.
+    (move index zr-tn)
+    ;; First the stack-pointer.
+    (inst mov esp-tn
+	  (make-ea :dword :base new-stack :index index :scale 4
+		   :disp (- (* vm:vector-data-offset vm:word-bytes)
+			    vm:other-pointer-type)))
+    (inst inc index)
+    (load-foreign-data-symbol stack "control_stack_end")
+    (inst mov stack (make-ea :dword :base stack))
+    LOOP2
+    (inst cmp stack esp-tn)
+    (inst jmp :le STACK-RESTORE-DONE)
+    (inst sub stack 4)
+    (inst mov temp (make-ea :dword :base new-stack :index index :scale 4
+			    :disp (- (* vm:vector-data-offset vm:word-bytes)
+				     vm:other-pointer-type)))
+    (inst mov (make-ea :dword :base stack) temp)
+    (inst inc index)
+    (inst jmp-short LOOP2)
+    STACK-RESTORE-DONE
+    ;; Pop the frame pointer, and resume at the return address.
+    (inst pop ebp-tn)
+    (inst ret)
+    
+    ;; Original thread resumes, stack has been cleaned up.
+    RETURN))
 
 (defpackage "SB-COROUTINE"
   (:documentation "Coroutines!!!!!!")
