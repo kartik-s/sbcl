@@ -98,6 +98,7 @@
   (:temporary (:sc unsigned-reg) index)
   (:temporary (:sc unsigned-reg) stack)
   (:temporary (:sc unsigned-reg) temp)
+  (:temporary (:sc unsigned-reg) temp2)
   (:save-p t)
   (:generator 25
     ;; Setup the return context.
@@ -132,27 +133,26 @@
     ;; Restore the new-stack.
     (move index zr-tn)
     ;; First the stack-pointer.
-    (inst mov esp-tn
-	  (make-ea :dword :base new-stack :index index :scale 4
-		   :disp (- (* vm:vector-data-offset vm:word-bytes)
-			    vm:other-pointer-type)))
-    (inst inc index)
-    (load-foreign-data-symbol stack "control_stack_end")
-    (inst mov stack (make-ea :dword :base stack))
+    (inst add temp new-stack (lsl index word-shift))
+    (loadw csp-tn temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst add index index 1)
+    (loadw stack thread-tn thread-control-stack-start-slot)
     LOOP2
-    (inst cmp stack esp-tn)
-    (inst jmp :le STACK-RESTORE-DONE)
-    (inst sub stack 4)
-    (inst mov temp (make-ea :dword :base new-stack :index index :scale 4
-			    :disp (- (* vm:vector-data-offset vm:word-bytes)
-				     vm:other-pointer-type)))
-    (inst mov (make-ea :dword :base stack) temp)
-    (inst inc index)
-    (inst jmp-short LOOP2)
+    (inst cmp stack csp-tn)
+    (inst b :ge STACK-RESTORE-DONE)
+    (inst add stack sb-vm:n-word-bytes)
+    (inst add temp new-stack (lsl index word-shift))
+    (loadw temp temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst str temp (@ stack))
+    (inst add index index 1)
+    (inst b LOOP2)
     STACK-RESTORE-DONE
     ;; Pop the frame pointer, and resume at the return address.
-    (inst pop ebp-tn)
-    (inst ret)
+    (inst ldr cfp-tn (@ csp-tn))
+    (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst ldr lr-tn (@ csp-tn))
+    (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst br lr-tn)
     
     ;; Original thread resumes, stack has been cleaned up.
     RETURN))
