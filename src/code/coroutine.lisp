@@ -211,7 +211,8 @@
   (current-unwind-protect-block 0 :type fixnum)
   (alien-stack nil :type (or (simple-array (unsigned-byte 64) (*)) null))
   (alien-stack-pointer 0 :type (unsigned-byte 32))
-  (resumer nil :type (or coroutine null)))
+  (resumer nil :type (or coroutine null))
+  (yield-value nil :type t))
 
 (declaim (type (or coroutine null) *current-coroutine*))
 (defvar *current-coroutine* nil)
@@ -365,4 +366,9 @@
 	(sb-vm::control-stack-resume control-stack new-control-stack))
       ;; Thread returns.
       (setq *current-coroutine* coroutine)))
-  (values))
+  (values (coroutine-yield-value new-coroutine)))
+
+(defun coroutine-yield (x)
+  (let ((resumer (coroutine-resumer *current-coroutine*)))
+    (setf (coroutine-yield-value *current-coroutine*) x)
+    (coroutine-resume resumer)))
