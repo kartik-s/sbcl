@@ -18,7 +18,6 @@
   (:generator 25
     ;; Setup the return context.
     (inst adr temp RETURN)
-    (format t "stack: ~a, save-stack: ~a, temp: ~a, index: ~a, child: ~a~%" stack save-stack temp index child)
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
     (inst str temp (@ csp-tn))x
 
@@ -155,6 +154,7 @@
   (:save-p t)
   (:generator 25
     ;; Restore the new-stack.
+    (format t "new-stack: ~a, index: ~a, stack: ~a, temp: ~a~%" new-stack index stack temp)
     (move index zr-tn)
     ;; First the stack-pointer.
     (inst add temp new-stack (lsl index word-shift))
@@ -214,44 +214,48 @@
 (declaim (type (or coroutine null) *current-coroutine*))
 (defvar *current-coroutine* nil)
 
+(defun allocate-control-stack ()
+  (let* (;; Allocate a new control-stack ID.
+         (control-stack-id (position nil *control-stacks*))
+         ;; Find the required stack size.
+         (control-stack-size
+           (- sb-vm:*control-stack-end* sb-vm:*control-stack-start*))
+         ;; Saved control stack needs three extra words. The
+         ;; stack pointer will be stored in the first
+         ;; element, and the frame pointer and return address
+         ;; push onto the bottom of the stack.
+         (control-stack
+           (make-array (+ (ceiling control-stack-size 4) 3)
+                       :element-type '(unsigned-byte 64)
+                       :initial-element 0)))
+    (declare (type (unsigned-byte 29) control-stack-size))
+    (unless control-stack-id
+      ;; Need to extend the *control-stacks* vector.
+      (setf control-stack-id (length *control-stacks*))
+      (setf *control-stacks*
+            (adjust-array *control-stacks*
+                          (* 2 (length *control-stacks*))
+                          :element-type '(or null (unsigned-byte 64))
+                          :initial-element nil)))
+    (setf (aref *control-stacks* control-stack-id) control-stack)
+    (values control-stack control-stack-id)))
+
 (defun convert-thread-to-coroutine ()
-  (setf *current-coroutine*
-        (%make-coroutine :state :active
-                         :control-stack-id nil
-                         :current-catch-block sb-vm::*current-catch-block*
-                         :current-unwind-protect-block sb-vm::*current-unwind-protect-block*
-                         :alien-stack nil
-                         :alien-stack-pointer sb-vm::*alien-stack-pointer*
-                         :resumer nil)))
+  (multiple-value-bind (control-stack control-stack-id)
+      (allocate-control-stack)
+    (declare (ignore control-stack))
+    (setf *current-coroutine*
+          (%make-coroutine :state :active
+                           :control-stack-id control-stack-id
+                           :current-catch-block sb-vm::*current-catch-block*
+                           :current-unwind-protect-block sb-vm::*current-unwind-protect-block*
+                           :alien-stack nil
+                           :alien-stack-pointer sb-vm::*alien-stack-pointer*
+                           :resumer nil))))
 
 (defun make-coroutine (initial-function)
   (declare (type function initial-function))
-  (flet ((allocate-control-stack ()
-           (let* (;; Allocate a new control-stack ID.
-                  (control-stack-id (position nil *control-stacks*))
-                  ;; Find the required stack size.
-                  (control-stack-size
-                    (- sb-vm:*control-stack-end* sb-vm:*control-stack-start*))
-                  ;; Saved control stack needs three extra words. The
-                  ;; stack pointer will be stored in the first
-                  ;; element, and the frame pointer and return address
-                  ;; push onto the bottom of the stack.
-                  (control-stack
-                    (make-array (+ (ceiling control-stack-size 4) 3)
-                                :element-type '(unsigned-byte 64)
-                                :initial-element 0)))
-             (declare (type (unsigned-byte 29) control-stack-size))
-             (unless control-stack-id
-               ;; Need to extend the *control-stacks* vector.
-               (setf control-stack-id (length *control-stacks*))
-               (setf *control-stacks*
-                     (adjust-array *control-stacks*
-                                   (* 2 (length *control-stacks*))
-                                   :element-type '(or null (unsigned-byte 64))
-                                   :initial-element nil)))
-             (setf (aref *control-stacks* control-stack-id) control-stack)
-             (values control-stack control-stack-id)))
-         ;; Allocate a new stack group with fresh stacks and bindings.
+  (flet (;; Allocate a new stack group with fresh stacks and bindings.
          (allocate-new-coroutine (control-stack-id)
            ;; Allocate a coroutine structure.
            (%make-coroutine
@@ -274,7 +278,11 @@
                   (unwind-protect
                        (funcall initial-function)
                     (format t "stack unwound~%")
-                    )))))))))
+                    (let* ((resumer (coroutine-resumer *current-coroutine*))
+                           (resumer-control-stack (aref *control-stacks*
+                                                        (coroutine-control-stack-id resumer))))
+                      (format t "about to return to resumer~%")
+                      (sb-vm::control-stack-return resumer-control-stack)))))))))))
 
 (defun coroutine-resume (resumee)
   (declare (type coroutine resumee)
@@ -286,10 +294,7 @@
            (resumer *current-coroutine*)
            ;; The save-stack vector.
            (resumer-control-stack
-             (let ((stack-id (coroutine-control-stack-id resumer)))
-               (if (null stack-id)
-                   (make-array 1024 :element-type '(unsigned-byte 64))
-                   (aref *control-stacks* stack-id)))))
+             (aref *control-stacks* (coroutine-control-stack-id resumer))))
       (declare (type (simple-array (unsigned-byte 64) (*)) resumer-control-stack))
       ;; Misc stacks.
       (setf (coroutine-current-catch-block resumer)
@@ -314,7 +319,11 @@
         (format t "switching from 0x~x to 0x~x~%"
                 (aref resumer-control-stack 0)
                 (aref resumee-control-stack 0))
+        (setf *current-coroutine* resumee)
+        (setf (coroutine-resumer resumee) resumer)
         (sb-vm::control-stack-resume resumer-control-stack resumee-control-stack))
       ;; Thread returns.
+      (format t "im back!!!!~%")
+      (finish-output)
       (setq *current-coroutine* resumer)))
   (values))
