@@ -12,14 +12,15 @@
   (:result-types t)
   (:temporary (:sc unsigned-reg) index)
   (:temporary (:sc unsigned-reg) stack)
-  (:temporary (:sc unsigned-reg) temp)
+  (:temporary (:sc unsigned-reg)
+              temp)
   (:temporary (:sc unsigned-reg) temp2)
-  (:save-p t)
+  (:save-p :force-to-stack)
   (:generator 25
     ;; Setup the return context.
     (inst adr temp RETURN)
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
-    (inst str temp (@ csp-tn))x
+    (inst str temp (@ csp-tn))
 
     (loadw stack thread-tn thread-control-stack-start-slot)
 
@@ -81,7 +82,7 @@
   (:temporary (:sc unsigned-reg) stack)
   (:temporary (:sc unsigned-reg) temp)
   (:temporary (:sc unsigned-reg) temp2)
-  (:save-p t)
+  (:save-p :force-to-stack)
   (:generator 25
     ;; Setup the return context.
     (inst adr temp RETURN)
@@ -151,9 +152,10 @@
   (:temporary (:sc unsigned-reg) index)
   (:temporary (:sc unsigned-reg) stack)
   (:temporary (:sc unsigned-reg) temp)
-  (:save-p t)
+  (:save-p :force-to-stack)
   (:generator 25
     ;; Restore the new-stack.
+    #+nil
     (format t "new-stack: ~a, index: ~a, stack: ~a, temp: ~a~%" new-stack index stack temp)
     (move index zr-tn)
     ;; First the stack-pointer.
@@ -214,6 +216,9 @@
 (declaim (type (or coroutine null) *current-coroutine*))
 (defvar *current-coroutine* nil)
 
+(declaim (type (or coroutine null) *initial-coroutine*))
+(defvar *initial-coroutine* nil)
+
 (defun allocate-control-stack ()
   (let* (;; Allocate a new control-stack ID.
          (control-stack-id (position nil *control-stacks*))
@@ -251,7 +256,8 @@
                            :current-unwind-protect-block sb-vm::*current-unwind-protect-block*
                            :alien-stack nil
                            :alien-stack-pointer sb-vm::*alien-stack-pointer*
-                           :resumer nil))))
+                           :resumer nil))
+    (setf *initial-coroutine* *current-coroutine*)))
 
 (defun make-coroutine (initial-function)
   (declare (type function initial-function))
@@ -267,63 +273,96 @@
             :alien-stack-pointer 0
             :resumer nil)))
     (let ((child-coroutine nil))
-      (sb-sys:without-interrupts
-        (sb-sys:without-gcing
-          (multiple-value-bind (control-stack control-stack-id)
-              (allocate-control-stack)
-            (setq child-coroutine (allocate-new-coroutine control-stack-id))
-            (if (sb-vm::control-stack-fork control-stack)
-                child-coroutine
-                (progn
-                  (unwind-protect
-                       (funcall initial-function)
-                    (format t "stack unwound~%")
-                    (let* ((resumer (coroutine-resumer *current-coroutine*))
-                           (resumer-control-stack (aref *control-stacks*
-                                                        (coroutine-control-stack-id resumer))))
-                      (format t "about to return to resumer~%")
-                      (sb-vm::control-stack-return resumer-control-stack)))))))))))
+      (let ((sb-unix::*interrupts-enabled* nil)
+            (sb-kernel::*gc-inhibit* t)))
+      (multiple-value-bind (control-stack control-stack-id)
+          (allocate-control-stack)
+        (setq child-coroutine (allocate-new-coroutine control-stack-id))
+        (if (sb-vm::control-stack-fork control-stack)
+            child-coroutine
+            (unwind-protect
+		 (progn
+		   (setq *current-coroutine* child-coroutine)
+		   ;; Enable interrupts and GC.
+		   (setf sb-unix::*interrupts-enabled* t)
+		   (setf sb-kernel::*gc-inhibit* nil)
 
-(defun coroutine-resume (resumee)
-  (declare (type coroutine resumee)
-           (optimize (speed 3)))
-  (assert (and (eq (coroutine-state resumee) :active)
-               (not (eq resumee *current-coroutine*))))
-  (sb-sys:without-gcing
+		   (funcall initial-function))
+	      (let ((resumer (coroutine-resumer *current-coroutine*)))
+		;; Disable interrupts and GC.
+		(setf sb-unix::*interrupts-enabled* nil)
+		(setf sb-kernel::*gc-inhibit* t)
+                ;; Inactivate the coroutine.
+                (setf (coroutine-state *current-coroutine*) :inactive)
+                ;; Verify the resumer.
+		(unless (and resumer
+			     (eq (coroutine-state resumer) :active))
+		  #+nil(format t "*Resuming coroutine ~s instead of ~s~%"
+			  *initial-coroutine* resumer)
+		  (setq resumer *initial-coroutine*))
+		;; Restore the resumer state.
+		(setq *current-coroutine* resumer)
+		;; Misc stacks.
+		(setf sb-vm::*current-catch-block*
+		      (coroutine-current-catch-block resumer))
+		(setf sb-vm::*current-unwind-protect-block*
+		      (coroutine-current-unwind-protect-block resumer))
+		(let ((new-control-stack
+			(aref *control-stacks*
+			      (coroutine-control-stack-id resumer))))
+		  (declare (type (simple-array (unsigned-byte 64) (*))
+				 new-control-stack))
+		  (sb-vm::control-stack-return new-control-stack)))))))))
+
+(defun coroutine-resume (new-coroutine)
+  (declare (type coroutine new-coroutine)
+	   (optimize (speed 3)))
+  (assert (and (eq (coroutine-state new-coroutine) :active)
+	       (not (eq new-coroutine *current-coroutine*))))
+  (let ((sb-unix::*interrupts-enabled* nil)
+	(sb-kernel::*gc-inhibit* t))
     (let* (;; Save the current coroutine on its stack.
-           (resumer *current-coroutine*)
-           ;; The save-stack vector.
-           (resumer-control-stack
-             (aref *control-stacks* (coroutine-control-stack-id resumer))))
-      (declare (type (simple-array (unsigned-byte 64) (*)) resumer-control-stack))
-      ;; Misc stacks.
-      (setf (coroutine-current-catch-block resumer)
-            sb-vm::*current-catch-block*)
-      (setf (coroutine-current-unwind-protect-block resumer)
-            sb-vm::*current-unwind-protect-block*)
-      (setf (coroutine-alien-stack-pointer resumer)
-            sb-vm::*alien-stack-pointer*)
-      (setf sb-vm::*current-catch-block*
-            (coroutine-current-catch-block resumee))
-      (setf sb-vm::*current-unwind-protect-block*
-            (coroutine-current-unwind-protect-block resumee))
-      (setf sb-vm::*alien-stack-pointer*
-            (coroutine-alien-stack-pointer resumee))
+	   (coroutine *current-coroutine*)
+	   ;; Find the required stack size.
+	   (control-stack-size (- sb-vm::*control-stack-end*
+				  sb-vm::*control-stack-start*))
+	   ;; Stack-save array needs three extra elements. The stack
+	   ;; pointer will be stored in the first, and the frame
+	   ;; pointer and return address push onto the bottom of the
+	   ;; stack.
+	   (save-stack-size (+ (ceiling control-stack-size sb-vm:n-word-bytes) 3))
+	   ;; The save-stack vector.
+	   (control-stack (aref *control-stacks*
+				(coroutine-control-stack-id coroutine))))
+      (declare (type (unsigned-byte 29) control-stack-size save-stack-size)
+	       (type (simple-array (unsigned-byte 64) (*)) control-stack))
+      ;; Increase the save-stack size if necessary.
+      (when (> save-stack-size (length control-stack))
+	(setf control-stack (adjust-array control-stack save-stack-size
+					  :element-type '(unsigned-byte 64)
+					  :initial-element 0))
+	(setf (aref *control-stacks*
+		    (coroutine-control-stack-id coroutine))
+	      control-stack))
 
-      (let ((resumee-control-stack
-              (aref *control-stacks*
-                    (coroutine-control-stack-id resumee))))
-        (declare (type (simple-array (unsigned-byte 64) (*))
-                       resumee-control-stack))
-        (format t "about to swap control stacks~%")
-        (format t "switching from 0x~x to 0x~x~%"
-                (aref resumer-control-stack 0)
-                (aref resumee-control-stack 0))
-        (setf *current-coroutine* resumee)
-        (setf (coroutine-resumer resumee) resumer)
-        (sb-vm::control-stack-resume resumer-control-stack resumee-control-stack))
+      ;; Misc stacks.
+      (setf (coroutine-current-catch-block coroutine)
+	    sb-vm::*current-catch-block*)
+      (setf (coroutine-current-unwind-protect-block coroutine)
+	    sb-vm::*current-unwind-protect-block*)
+      (setf sb-vm::*current-catch-block*
+	    (coroutine-current-catch-block new-coroutine))
+      (setf sb-vm::*current-unwind-protect-block*
+	    (coroutine-current-unwind-protect-block new-coroutine))
+
+      ;; 
+      (let ((new-control-stack
+	     (aref *control-stacks*
+		   (coroutine-control-stack-id new-coroutine))))
+	(declare (type (simple-array (unsigned-byte 64) (*))
+		       new-control-stack))
+        (setf (coroutine-resumer new-coroutine) coroutine)
+	(sb-vm::control-stack-resume control-stack new-control-stack))
       ;; Thread returns.
-      (format t "im back!!!!~%")
-      (finish-output)
-      (setq *current-coroutine* resumer)))
+      (setq *current-coroutine* coroutine)))
   (values))
