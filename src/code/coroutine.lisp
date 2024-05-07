@@ -141,6 +141,45 @@
     ;; Original thread resumes, stack has been cleaned up.
     RETURN))
 
+(defknown control-stack-return ((simple-array (unsigned-byte 64) (*)))
+  (values))
+
+(define-vop (control-stack-return)
+  (:policy :fast-safe)
+  (:translate control-stack-return)
+  (:args (new-stack :scs (descriptor-reg) :to :result))
+  (:arg-types simple-array-unsigned-byte-64)
+  (:temporary (:sc unsigned-reg) index)
+  (:temporary (:sc unsigned-reg) stack)
+  (:temporary (:sc unsigned-reg) temp)
+  (:save-p t)
+  (:generator 25
+    ;; Restore the new-stack.
+    (move index zr-tn)
+    ;; First the stack-pointer.
+    (inst add temp new-stack (lsl index word-shift))
+    (loadw csp-tn temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst add index index 1)
+    (loadw stack thread-tn thread-control-stack-start-slot)
+
+    LOOP
+    (inst cmp stack csp-tn)
+    (inst b :ge STACK-RESTORE-DONE)
+    (inst add stack stack sb-vm:n-word-bytes)
+    (inst add temp new-stack (lsl index word-shift))
+    (loadw temp temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+    (inst str temp (@ stack))
+    (inst add index index 1)
+    (inst b LOOP)
+
+    STACK-RESTORE-DONE
+    ;; Pop the frame pointer, and resume at the return address.
+    (inst ldr cfp-tn (@ csp-tn))
+    (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst ldr lr-tn (@ csp-tn))
+    (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst ret lr-tn)))
+
 (defpackage "SB-COROUTINE"
   (:documentation "Coroutines!!!!!!")
   (:use "CL"))
@@ -234,7 +273,8 @@
                 (progn
                   (unwind-protect
                        (funcall initial-function)
-                    (format t "stack unwound~%"))))))))))
+                    (format t "stack unwound~%")
+                    )))))))))
 
 (defun coroutine-resume (resumee)
   (declare (type coroutine resumee)
