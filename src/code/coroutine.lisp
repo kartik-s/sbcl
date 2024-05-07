@@ -17,22 +17,25 @@
   (:save-p t)
   (:generator 25
     ;; Setup the return context.
-    (inst adr temp return)
-    (inst str temp (@ csp-tn))
+    (inst adr temp RETURN)
+    (format t "stack: ~a, save-stack: ~a, temp: ~a, index: ~a, child: ~a~%" stack save-stack temp index child)
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst str temp (@ csp-tn))x
 
     (loadw stack thread-tn thread-control-stack-start-slot)
 
     ;; New FP is the Top of the stack.
-    (inst str stack (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst str stack (@ csp-tn))
+    #+nil (inst add csp-tn csp-tn sb-vm:n-word-bytes)
     ;; Save the stack.
     (move index zr-tn)
     ;; First save the adjusted stack-pointer.
-    (inst add stack stack cfp-tn)
-    (inst sub stack stack csp-tn)
+    (inst add stack stack csp-tn)
+    (inst sub stack stack cfp-tn)
     (inst add temp save-stack (lsl index word-shift))
     (storew stack temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
+
     ;; Save the current frame, replacing the OCFP and RA by 0.
     (storew zr-tn temp (+ 1 sb-vm:vector-data-offset) sb-vm:other-pointer-lowtag)
     ;; Save 0 for the OCFP.
@@ -41,13 +44,11 @@
     ;; Copy the remainder of the frame, skiping the OCFP and RA which
     ;; are saved above.
 
-    (format t "~a" stack)
-
     (inst add stack cfp-tn (* 2 sb-vm:n-word-bytes))
 
     LOOP
     (inst cmp stack csp-tn)
-    (inst b :ge stack-save-done)
+    (inst b :ge STACK-SAVE-DONE)
     (inst add stack stack sb-vm:n-word-bytes)
     (inst ldr temp (@ stack))
     (inst add temp2 save-stack (lsl index word-shift))
@@ -56,34 +57,16 @@
     (inst b LOOP)
     
     RETURN
-    ;; Stack already clean if it reaches here. Parent returns NIL.
+    ;; Stack already clean if it reaches here. Child returns NIL.
     (move child null-tn)
     (inst b DONE)
     
     STACK-SAVE-DONE
     ;; Cleanup the stack
     (inst sub csp-tn csp-tn (* 2 sb-vm:n-word-bytes))
-    ;; Child returns T.
+    ;; Parent returns T.
     (load-symbol child t)
     DONE))
-
-(defknown control-stack-swap ((simple-array (unsigned-byte 64) (*))
-                              (simple-array (unsigned-byte 64) (*)))
-    (values))
-
-(define-vop (control-stack-swap)
-  (:policy :fast-safe)
-  (:translate control-stack-swap)
-  (:args (resumer-stack :scs (descriptor-reg) :to :result)
-         (resumee-stack :scs (descriptor-reg) :to :result))
-  (:temporary (:sc unsigned-reg) jump-addr)
-  (:arg-types simple-array-unsigned-byte-64 simple-array-unsigned-byte-64)
-  (:save-p t)
-  (:generator 25
-              (inst str csp-tn (@ resumer-stack (* 0 sb-vm:n-word-bytes)))
-              (inst ldr csp-tn (@ resumee-stack (* 0 sb-vm:n-word-bytes)))
-              (inst ldr jump-addr (@ csp-tn (* -1 sb-vm:n-word-bytes)))
-              (inst ret jump-addr)))
 
 (defknown control-stack-resume ((simple-array (unsigned-byte 64) (*))
 				(simple-array (unsigned-byte 64) (*)))
@@ -102,12 +85,12 @@
   (:save-p t)
   (:generator 25
     ;; Setup the return context.
-    (inst adr temp return)
+    (inst adr temp RETURN)
+    (inst add csp-tn csp-tn sb-vm:n-word-bytes)
     (inst str temp (@ csp-tn))
-    (inst add csp-tn csp-tn sb-vm:n-word-bytes)
 
-    (inst str cfp-tn (@ csp-tn))
     (inst add csp-tn csp-tn sb-vm:n-word-bytes)
+    (inst str cfp-tn (@ csp-tn))
     ;; Save the stack.
     (move index zr-tn)
     ;; First the stack-pointer.
@@ -140,19 +123,20 @@
     LOOP2
     (inst cmp stack csp-tn)
     (inst b :ge STACK-RESTORE-DONE)
-    (inst add stack sb-vm:n-word-bytes)
+    (inst add stack stack sb-vm:n-word-bytes)
     (inst add temp new-stack (lsl index word-shift))
     (loadw temp temp sb-vm:vector-data-offset sb-vm:other-pointer-lowtag)
     (inst str temp (@ stack))
     (inst add index index 1)
     (inst b LOOP2)
+
     STACK-RESTORE-DONE
     ;; Pop the frame pointer, and resume at the return address.
     (inst ldr cfp-tn (@ csp-tn))
     (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
     (inst ldr lr-tn (@ csp-tn))
     (inst sub csp-tn csp-tn sb-vm:n-word-bytes)
-    (inst br lr-tn)
+    (inst ret lr-tn)
     
     ;; Original thread resumes, stack has been cleaned up.
     RETURN))
@@ -245,8 +229,12 @@
           (multiple-value-bind (control-stack control-stack-id)
               (allocate-control-stack)
             (setq child-coroutine (allocate-new-coroutine control-stack-id))
-            (print (sb-vm::control-stack-fork control-stack)))))
-      child-coroutine)))
+            (if (sb-vm::control-stack-fork control-stack)
+                child-coroutine
+                (progn
+                  (unwind-protect
+                       (funcall initial-function)
+                    (format t "stack unwound~%"))))))))))
 
 (defun coroutine-resume (resumee)
   (declare (type coroutine resumee)
@@ -283,7 +271,10 @@
         (declare (type (simple-array (unsigned-byte 64) (*))
                        resumee-control-stack))
         (format t "about to swap control stacks~%")
-        (sb-vm::control-stack-swap resumer-control-stack resumee-control-stack))
+        (format t "switching from 0x~x to 0x~x~%"
+                (aref resumer-control-stack 0)
+                (aref resumee-control-stack 0))
+        (sb-vm::control-stack-resume resumer-control-stack resumee-control-stack))
       ;; Thread returns.
       (setq *current-coroutine* resumer)))
   (values))
