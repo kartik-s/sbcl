@@ -883,6 +883,9 @@ void* load_core_bytes(int fd, os_vm_offset_t offset, os_vm_address_t addr, os_vm
         if (count == -1) {
             perror("read() failed"); fflush(stderr);
         }
+#ifdef LISP_FEATURE_VOLATILE_READ_CORE_BYTES
+        for (size_t i = 0; i < count; i++) asm volatile ("" : : "r" (*((char *) addr + i)));
+#endif
         addr += count;
         len -= count;
         gc_assert(count == (int) to_read);
