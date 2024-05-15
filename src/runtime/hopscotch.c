@@ -22,8 +22,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #ifdef LISP_FEATURE_WIN32
+# ifdef LISP_FEATURE_RUNTIME_PDB
+#  define ffs(x) __builtin_ffs(x)
+# else
 /* I don't know where ffs() is prototyped */
 extern int ffs(int);
+# endif
 #else
 /* https://www.freebsd.org/cgi/man.cgi?query=fls&sektion=3&manpath=FreeBSD+7.1-RELEASE
    says strings.h */
