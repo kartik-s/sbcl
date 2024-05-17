@@ -750,12 +750,22 @@ initialize_lisp(int argc, char *argv[], char *envp[])
 
     globals_init();
 
+    LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
+    double elapsed_time;
+    QueryPerformanceFrequency(&ticks_per_sec);
+    QueryPerformanceCounter(&start_ticks);
+
     /* Doing this immediately after the core has been located
      * and before any random malloc() calls occur improves the chance
      * of mapping dynamic space at our preferred address (if movable).
      * If not movable, it was already mapped in allocate_spaces(). */
     initial_function = load_core_file(core, embedded_core_offset,
                                       options.merge_core_pages);
+
+    QueryPerformanceCounter(&end_ticks);
+    elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
+    printf("load_core_file: %f seconds\n", elapsed_time);
+
     if (initial_function == NIL) {
         lose("couldn't find initial function");
     }
