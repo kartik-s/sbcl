@@ -886,7 +886,16 @@ process_directory(int count, struct ndir_entry *entry,
             } else
 #endif
             {
+                LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
+                double elapsed_time;
+                QueryPerformanceFrequency(&ticks_per_sec);
+                QueryPerformanceCounter(&start_ticks);
+
                 load_core_bytes(fd, offset + file_offset, (os_vm_address_t)addr, len, id == READ_ONLY_CORE_SPACE_ID);
+
+                QueryPerformanceCounter(&end_ticks);
+                elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
+                printf("load_core_bytes addr=%llx len=%llu: %f seconds\n", addr, len, elapsed_time);
             }
         }
 #ifdef LISP_FEATURE_DARWIN_JIT
