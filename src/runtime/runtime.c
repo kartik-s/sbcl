@@ -599,6 +599,10 @@ parse_argv(struct memsize_options memsize_options,
 int
 initialize_lisp(int argc, char *argv[], char *envp[])
 {
+    LARGE_INTEGER start_ticks, end_ticks, ticks_per_sec;
+    double elapsed_time;
+    QueryPerformanceFrequency(&ticks_per_sec);
+    QueryPerformanceCounter(&start_ticks);
 #ifdef LISP_FEATURE_WIN32
     /* Exception handling support structure. Evil Win32 hack. */
     struct lisp_exception_frame exception_frame;
@@ -805,6 +809,9 @@ initialize_lisp(int argc, char *argv[], char *envp[])
     core_string = core;
     posix_argv = options.argv;
 
+    QueryPerformanceCounter(&end_ticks);
+    elapsed_time = ((double) (end_ticks.QuadPart - start_ticks.QuadPart)) / ticks_per_sec.QuadPart;
+    printf("initialize_runtime: %f seconds\n", elapsed_time);
     create_main_lisp_thread(initial_function);
     return 0;
 }
