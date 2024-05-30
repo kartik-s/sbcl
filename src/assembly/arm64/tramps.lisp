@@ -123,6 +123,42 @@
           (def 0)
           (def 2)))
 
+      (define-assembly-routine (more-stack (:return-style :none))
+          ((:temp nl0 unsigned-reg nl0-offset)
+           (:temp nl1 unsigned-reg nl1-offset)
+           (:temp nl2 unsigned-reg nl2-offset)
+           (:temp nl3 unsigned-reg nl3-offset))
+        (declare (ignorable nl1 nl2))
+        (map-pairs stp nsp-tn 0 nl-registers :pre-index -80)
+        #+nil (inst mov nl0 tmp-tn) ;; size
+        (inst stp cfp-tn csp-tn (@ thread-tn (* thread-control-frame-pointer-slot n-word-bytes)))
+        ;; Create a new frame
+        (inst add csp-tn csp-tn (+ 16 80))
+        (inst stp cfp-tn lr-tn (@ csp-tn -96))
+
+        (map-pairs stp csp-tn -80 lisp-registers)
+        (map-pairs stp nsp-tn 0 float-registers :pre-index -512 :delta 32)
+
+        (inst stp csp-tn cfp-tn (@ csp-tn 16))
+        (inst stp ocfp-tn zr-tn (@ csp-tn))
+
+        (invoke-foreign-routine "more_stack" nl3)
+
+        (inst mov csp-tn nl0)
+        (inst ldp ocfp-tn zr-tn (@ csp-tn))
+        (inst ldp csp-tn cfp-tn (@ csp-tn 16))
+
+        (map-pairs ldp nsp-tn 480 float-registers :post-index 512 :delta -32)
+        (map-pairs ldp csp-tn -16 lisp-registers :delta -16)
+
+        (inst ldr lr-tn (@ csp-tn -88))
+
+        (inst sub csp-tn csp-tn (+ 16 80)) ;; deallocate the frame
+        (inst str zr-tn (@ thread-tn (* thread-control-stack-pointer-slot n-word-bytes)))
+
+        (map-pairs ldp nsp-tn 64 nl-registers :post-index 80 :delta -16)
+        (inst ret))
+
       #+debug-gc-barriers
       (define-assembly-routine (check-barrier (:return-style :none))
           ((:temp nl0 unsigned-reg nl0-offset)
