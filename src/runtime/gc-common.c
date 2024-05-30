@@ -91,6 +91,10 @@ static void (*scav_ptr[4])(lispobj *where, lispobj object); /* forward decl */
 #define PTR_SCAVTAB_INDEX(ptr) ((uint32_t)ptr>>(N_LOWTAG_BITS-2))&3
 #endif
 
+static int more_stacking = 0;
+static lispobj g_old_stack_start;
+static lispobj g_old_csp;
+
 /* Fixup the pointer in 'object' which is stored at *addr.
  * That is, rewrite *addr if (and only if) 'object' got moved.
  *
@@ -130,16 +134,19 @@ static inline void scav1(lispobj* addr, lispobj object)
 
     __attribute__((unused)) page_index_t page = find_page_index((void*)object);
 #ifndef LISP_FEATURE_MARK_REGION_GC
-    if (page_table[page].gen == from_space) {
+    if (page_table[page].gen == from_space || (more_stacking && (g_old_stack_start <= object && object < g_old_csp))) {
 #else
       /* The incremental compactor only calls scavenge (then scav1) with
        * pointers of the right generation. */
       {
 #endif
-            if (forwarding_pointer_p(native_pointer(object)))
+        if (forwarding_pointer_p(native_pointer(object))) {
+          printf("forwarding!!!! WOOOOO\n");
                 *addr = forwarding_pointer_value(native_pointer(object));
-            else if (!pinned_p(object, page))
+        }
+            else if (!pinned_p(object, page)) {
                 scav_ptr[PTR_SCAVTAB_INDEX(object)](addr, object);
+            }
     }
 #ifdef LISP_FEATURE_IMMOBILE_SPACE
     // Test immobile_space_p() only if object was definitely not in dynamic space
@@ -353,6 +360,7 @@ extern int pin_all_dynamic_space_code;
 static struct code *
 trans_code(struct code *code)
 {
+    printf("transporting code\n");
     gc_dcheck(!pin_all_dynamic_space_code);
     /* if object has already been transported, just return pointer */
     if (forwarding_pointer_p((lispobj *)code)) {
@@ -718,6 +726,8 @@ scav_list_pointer(lispobj *where, lispobj object)
  * scavenging and transporting other pointers
  */
 
+static lispobj trans_lose(lispobj object);
+
 static sword_t
 scav_other_pointer(lispobj *where, lispobj object)
 {
@@ -726,7 +736,17 @@ scav_other_pointer(lispobj *where, lispobj object)
     /* Object is a pointer into from space - not FP. */
     lispobj *first_pointer = (lispobj *)(object - OTHER_POINTER_LOWTAG);
     int tag = widetag_of(first_pointer);
-    lispobj copy = transother[other_immediate_lowtag_p(tag)?tag>>2:0](object);
+    lispobj copy;
+
+    void *trans_func = transother[other_immediate_lowtag_p(tag)?tag>>2:0];
+    if ((trans_func == trans_lose) && (tag & 7)) {
+        printf("here we go: %p\n", *((uint64_t *) first_pointer));
+        scav1(first_pointer, *((uint64_t *) first_pointer));
+        printf("and we're back: %p %p\n", *((uint64_t *) first_pointer), object);
+        copy = *((uint64_t *) first_pointer);
+    } else {
+        copy = transother[other_immediate_lowtag_p(tag)?tag>>2:0](object);
+    }
 
     // If the object was large, then instead of transporting it,
     // gencgc might simply promote the pages and return the same pointer.
@@ -2455,6 +2475,40 @@ scavenge_control_stack(struct thread *th)
     }
 }
 
+void
+scavenge_control_stack2(struct thread *th)
+{
+    lispobj *object_ptr;
+
+    /* In order to properly support dynamic-extent allocation of
+     * non-CONS objects, the control stack requires special handling.
+     * Rather than calling scavenge() directly, grovel over it fixing
+     * broken hearts, scavenging pointers to oldspace, and pitching a
+     * fit when encountering unboxed data.  This prevents stray object
+     * headers from causing the scavenger to blow past the end of the
+     * stack (an error case checked in scavenge()).  We don't worry
+     * about treating unboxed words as boxed or vice versa, because
+     * the compiler isn't allowed to store unboxed objects on the
+     * control stack.  -- AB, 2011-Dec-02 */
+
+    for (object_ptr = access_control_stack_pointer(th) - 1;
+         object_ptr >= th->control_stack_start;
+         object_ptr--) {
+        lispobj word = *object_ptr;
+        if (word == FORWARDING_HEADER)
+            lose("unexpected forwarding pointer in scavenge_control_stack: %p, start=%p, end=%p",
+                 object_ptr, th->control_stack_start, access_control_stack_pointer(th));
+        else if (is_lisp_pointer(word)) {
+          scav1(object_ptr, word);
+        }
+        else if (is_lisp_immediate(word)) { } // ignore
+        else if (scavtab[header_widetag(word)] == scav_lose) {
+            lose("unboxed object in scavenge_control_stack: %p->%"OBJ_FMTX", start=%p, end=%p",
+                 object_ptr, word, th->control_stack_start, access_control_stack_pointer(th));
+        }
+    }
+}
+
 #ifdef reg_CODE
 /* Scavenging Interrupt Contexts */
 
@@ -3530,4 +3584,133 @@ void sweep_linkage_space()
             if (inner->data[index2] == NIL && linkage_space[linkage_index])
                 linkage_space[linkage_index] = (uword_t)illegal_linkage_space_call;
     }
+}
+
+static void (*saved_scav_ptr[4])(lispobj *where, lispobj object);
+struct alloc_region saved_gc_alloc_region[6];
+static struct alloc_region fake_region;
+
+void scav_ptr0(lispobj *where, lispobj object)
+{
+    struct thread *th = get_sb_vm_thread();
+    printf("%lx %lx %lx\n", g_old_stack_start, object, g_old_csp);
+    if (g_old_stack_start <= object && object < g_old_csp) {
+        printf("0 found a pointer into the stack on the stack: %p -> %lx\n", where, object);
+        for (int i = 0; i < 6; i++) gc_alloc_region[i].free_pointer = ((char *) th->control_stack_start) + (size_t) (((char *) (object & ~7)) - (char *) g_old_stack_start);
+        saved_scav_ptr[0](where, object);
+    }
+}
+
+void scav_ptr1(lispobj *where, lispobj object)
+{
+    struct thread *th = get_sb_vm_thread();
+    printf("%lx %lx %lx\n", g_old_stack_start, object, g_old_csp);
+    if (g_old_stack_start <= object && object < g_old_csp) {
+        printf("1 found a pointer into the stack on the stack: %p -> %lx\n", where, object);
+        for (int i = 0; i < 6; i++) gc_alloc_region[i].free_pointer = ((char *) th->control_stack_start) + (size_t) (((char *) (object & ~7)) - (char *) g_old_stack_start);
+        saved_scav_ptr[1](where, object);
+    }
+}
+
+void scav_ptr2(lispobj *where, lispobj object)
+{
+    struct thread *th = get_sb_vm_thread();
+    printf("%lx %lx %lx\n", g_old_stack_start, object, g_old_csp);
+    if (g_old_stack_start <= object && object < g_old_csp) {
+        printf("2 found a pointer into the stack on the stack: %p -> %lx\n", where, object);
+        for (int i = 0; i < 6; i++) gc_alloc_region[i].free_pointer = ((char *) th->control_stack_start) + (size_t) (((char *) (object & ~7)) - (char *) g_old_stack_start);
+        printf("free pointer: %p\n", boxed_region->free_pointer);
+        saved_scav_ptr[2](where, object);
+    }
+}
+
+void scav_ptr3(lispobj *where, lispobj object)
+{
+    struct thread *th = get_sb_vm_thread();
+    printf("%lx %lx %lx\n", g_old_stack_start, object, g_old_csp);
+    if (g_old_stack_start <= object && object < g_old_csp) {
+        printf("3 found a pointer into the stack on the stack: %p -> %lx\n", where, object);
+        for (int i = 0; i < 6; i++) gc_alloc_region[i].free_pointer = ((char *) th->control_stack_start) + (size_t) (((char *) (object & ~7)) - (char *) g_old_stack_start);
+        saved_scav_ptr[3](where, object);
+    }
+}
+
+void *more_stack(void)
+{
+    struct thread *th = get_sb_vm_thread();
+    char *old_csp = (char *) access_control_stack_pointer(th) + 96;
+    char *old_cfp = (char *) access_control_frame_pointer(th);
+    char *old_stack_start = (char *) th->control_stack_start;
+    size_t stack_size = old_csp - old_stack_start;
+
+    g_old_stack_start = (uint64_t) old_stack_start;
+    g_old_csp = (uint64_t) old_csp;
+    printf("%lx\n", g_old_stack_start);
+
+    printf("csp: %p, cfp: %p\n", access_control_stack_pointer(th), access_control_frame_pointer(th));
+    printf("start: %p, end: %p, size: 0x%zx\n", th->control_stack_start, th->control_stack_end, stack_size);
+
+    char *new_stack = malloc(stack_size);
+    memset(new_stack, 0, stack_size);
+    memcpy(new_stack, old_stack_start, stack_size);
+
+    printf("new stack: %p\n", new_stack);
+
+    th->control_stack_start = (lispobj *) new_stack;
+    th->control_stack_end = (lispobj *) (new_stack + stack_size);
+    access_control_stack_pointer(th) = (lispobj *) (new_stack + (old_csp - old_stack_start));
+    access_control_frame_pointer(th) = (lispobj *) (new_stack + (old_cfp - old_stack_start));
+
+    fake_region.free_pointer = 0;
+    fake_region.end_addr = access_control_stack_pointer(th);
+    fake_region.start_addr = th->control_stack_start;
+
+    saved_scav_ptr[0] = scav_ptr[0];
+    saved_scav_ptr[1] = scav_ptr[1];
+    saved_scav_ptr[2] = scav_ptr[2];
+    saved_scav_ptr[3] = scav_ptr[3];
+    saved_gc_alloc_region[0] = gc_alloc_region[0];
+    saved_gc_alloc_region[1] = gc_alloc_region[1];
+    saved_gc_alloc_region[2] = gc_alloc_region[2];
+    saved_gc_alloc_region[3] = gc_alloc_region[3];
+    saved_gc_alloc_region[4] = gc_alloc_region[4];
+    saved_gc_alloc_region[5] = gc_alloc_region[5];
+    for (int i = 0; i < 6; i++) gc_alloc_region[i] = fake_region;
+    scav_ptr[0] = scav_ptr0;
+    scav_ptr[1] = scav_ptr1;
+    scav_ptr[2] = scav_ptr2;
+    scav_ptr[3] = scav_ptr3;
+
+    more_stacking = 1;
+    scavenge_control_stack(th);
+    printf("******** first pass done\n");
+    scavenge_control_stack(th);
+    printf("******** second pass done\n");
+    scavenge_control_stack(th);
+    more_stacking = 0;
+
+    printf("csp: %p, cfp: %p\n", access_control_stack_pointer(th), access_control_frame_pointer(th));
+    printf("start: %p, end: %p, size: 0x%zx\n", th->control_stack_start, th->control_stack_end, stack_size);
+
+    scav_ptr[0] = saved_scav_ptr[0];
+    scav_ptr[1] = saved_scav_ptr[1];
+    scav_ptr[2] = saved_scav_ptr[2];
+    scav_ptr[3] = saved_scav_ptr[3];
+    gc_alloc_region[0] = saved_gc_alloc_region[0];
+    gc_alloc_region[1] = saved_gc_alloc_region[1];
+    gc_alloc_region[2] = saved_gc_alloc_region[2];
+    gc_alloc_region[3] = saved_gc_alloc_region[3];
+    gc_alloc_region[4] = saved_gc_alloc_region[4];
+    gc_alloc_region[5] = saved_gc_alloc_region[5];
+
+    uint64_t *new_csp = access_control_stack_pointer(th);
+    uint64_t *p = old_csp;
+    printf("%p %p %p %p\n", p[0], p[1], p[2], p[3]);
+    new_csp[0] = new_stack + (size_t) (p[0] - (uint64_t) old_stack_start);
+    new_csp[1] = 0;
+    new_csp[2] = new_stack + (size_t) (p[2] - (uint64_t) old_stack_start);
+    new_csp[3] = new_stack + (size_t) (p[3] - (uint64_t) old_stack_start);
+    printf("%p %p %p %p\n", new_csp[0], new_csp[1], new_csp[2], new_csp[3]);
+
+    return new_csp;
 }

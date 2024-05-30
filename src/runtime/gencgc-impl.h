@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 /*
  * This software is part of the SBCL system. See the README file for
  * more information.
@@ -405,6 +407,7 @@ gc_copy_object(lispobj object, size_t nwords, void* region, int page_type)
     lispobj *new = gc_general_alloc(region, nwords*N_WORD_BYTES, page_type);
     NOTE_TRANSPORTING(object, new,  nwords);
 
+    printf("copying %lx to %p\n", object, ((struct alloc_region *) region)->free_pointer);
     /* Copy the object. */
     memcpy(new,native_pointer(object),nwords*N_WORD_BYTES);
 

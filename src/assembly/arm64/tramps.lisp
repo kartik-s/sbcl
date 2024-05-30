@@ -123,7 +123,7 @@
           (def 0)
           (def 2)))
 
-      (define-assembly-routine (more-stack (:return-style :none))
+      (define-assembly-routine (more-stack-tramp (:return-style :none))
           ((:temp nl0 unsigned-reg nl0-offset)
            (:temp nl1 unsigned-reg nl1-offset)
            (:temp nl2 unsigned-reg nl2-offset)
