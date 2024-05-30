@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <string.h>
 #include "genesis/sbcl.h"
+#include "genesis/unwind-block.h"
 #include "runtime.h"
 #include "os.h"
 #include "interr.h"
@@ -3707,6 +3708,35 @@ void *more_stack(void)
     new_csp[2] = new_stack + (size_t) (p[2] - (uint64_t) old_stack_start);
     new_csp[3] = new_stack + (size_t) (p[3] - (uint64_t) old_stack_start);
     printf("%p %p %p %p\n", new_csp[0], new_csp[1], new_csp[2], new_csp[3]);
+
+    for (uint64_t *p = new_stack; p < new_csp; p++) {
+        uint64_t word = *p;
+        if (old_stack_start <= word && word < old_csp) {
+          printf("found a pointer into the old stack: %p @ %p\n", word, p);
+          *p = new_stack + (word - (uint64_t) old_stack_start);
+        }
+    }
+
+    struct catch_block *catch = (struct catch_block *) read_TLS(CURRENT_CATCH_BLOCK, th);
+    printf("catch: %p\n", catch);
+    write_TLS(CURRENT_CATCH_BLOCK, new_stack + ((uint64_t) catch - (uint64_t) old_stack_start), th);
+    catch = (struct catch_block *) read_TLS(CURRENT_CATCH_BLOCK, th);
+    printf("catch: %p\n", catch);
+
+    while (catch) {
+      catch->uwp = new_stack + ((uint64_t) catch->uwp - (uint64_t) old_stack_start);
+      struct unwind_block *unwind = catch->uwp;
+      // unwind->uwp = new_stack + ((uint64_t) unwind->uwp - (uint64_t) old_stack_start);
+      // unwind->cfp = new_stack + ((uint64_t) unwind->cfp - (uint64_t) old_stack_start);
+      catch->cfp = new_stack + ((uint64_t) catch->cfp - (uint64_t) old_stack_start);
+      catch = catch->previous_catch;
+    }
+
+    struct unwind_block *unwind = (struct unwind_block *) read_TLS(CURRENT_UNWIND_PROTECT_BLOCK, th);
+    printf("unwind: %p, %p, %p\n", unwind, unwind->uwp, unwind->cfp);
+    write_TLS(CURRENT_UNWIND_PROTECT_BLOCK, new_stack + ((uint64_t) unwind - (uint64_t) old_stack_start), th);
+    unwind = (struct unwind_block *) read_TLS(CURRENT_UNWIND_PROTECT_BLOCK, th);
+    printf("unwind: %p, %p, %p\n", unwind, unwind->uwp, unwind->cfp);
 
     return new_csp;
 }
