@@ -140,13 +140,10 @@ static inline void scav1(lispobj* addr, lispobj object)
        * pointers of the right generation. */
       {
 #endif
-        if (forwarding_pointer_p(native_pointer(object))) {
-          printf("forwarding!!!! WOOOOO\n");
+            if (forwarding_pointer_p(native_pointer(object)))
                 *addr = forwarding_pointer_value(native_pointer(object));
-        }
-            else if (!pinned_p(object, page)) {
+            else if (!pinned_p(object, page))
                 scav_ptr[PTR_SCAVTAB_INDEX(object)](addr, object);
-            }
     }
 #ifdef LISP_FEATURE_IMMOBILE_SPACE
     // Test immobile_space_p() only if object was definitely not in dynamic space
@@ -360,7 +357,6 @@ extern int pin_all_dynamic_space_code;
 static struct code *
 trans_code(struct code *code)
 {
-    printf("transporting code\n");
     gc_dcheck(!pin_all_dynamic_space_code);
     /* if object has already been transported, just return pointer */
     if (forwarding_pointer_p((lispobj *)code)) {
