@@ -139,14 +139,14 @@
         (map-pairs stp csp-tn -80 lisp-registers)
         (map-pairs stp nsp-tn 0 float-registers :pre-index -512 :delta 32)
 
-        (inst stp csp-tn cfp-tn (@ csp-tn 16))
-        (inst stp ocfp-tn zr-tn (@ csp-tn))
+        (inst stp csp-tn cfp-tn (@ csp-tn))
+        (inst str ocfp-tn (@ csp-tn 16))
 
         (invoke-foreign-routine "more_stack" nl3)
 
         (inst mov csp-tn nl0)
-        (inst ldp ocfp-tn zr-tn (@ csp-tn))
-        (inst ldp csp-tn cfp-tn (@ csp-tn 16))
+        (inst ldr ocfp-tn (@ csp-tn 16))
+        (inst ldp csp-tn cfp-tn (@ csp-tn))
 
         (map-pairs ldp nsp-tn 480 float-registers :post-index 512 :delta -32)
         (map-pairs ldp csp-tn -16 lisp-registers :delta -16)
