@@ -225,7 +225,7 @@ extern char *os_get_runtime_executable_path();
 #define OS_VM_SIZE_FMT PRIuPTR
 #define OS_VM_SIZE_FMTX PRIxPTR
 
-#if defined LISP_FEATURE_SB_THREAD && defined LISP_FEATURE_UNIX
+#if defined LISP_FEATURE_SB_THREAD
 #  ifndef USE_DARWIN_GCD_SEMAPHORES
 #    include <semaphore.h>
      typedef sem_t os_sem_t;

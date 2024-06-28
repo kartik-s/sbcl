@@ -13,7 +13,7 @@
   "Default maximum number of stack traces collected.")
 (declaim (type sb-int:index *max-samples*))
 
-(defvar *sampling-mode* :cpu
+(defvar *sampling-mode* #-win32 :cpu #+win32 :time
   "Default sampling mode. :CPU for cpu profiling, :ALLOC for allocation
 profiling, and :TIME for wallclock profiling.")
 (declaim (type sampling-mode *sampling-mode*))
@@ -108,7 +108,6 @@ inappropriate set of sampled threads, or possibly a profiler bug.~:@>"))
 ;;; or SB-EXT:TIMER depending on whether thread support exists.
 (defglobal *timer* nil)
 
-#-win32
 (defun start-profiling (&key (max-samples *max-samples*)
                         (mode *sampling-mode*)
                         (sample-interval *sample-interval*)
@@ -175,6 +174,7 @@ The following keyword args are recognized:
   ;; as a boolean flag. -1 means "install", 0 means "uninstall" which we don't do.
   ;; Statistical allocation profiling is not signal-based- instead, whenever a C call
   ;; occurs to handle thread-local allocation region overflow, a trace is recorded.
+  #-win32
   (unless (eq mode :alloc)
     (with-alien ((%sigaction (function void int signed) :extern "install_handler"))
       (alien-funcall %sigaction sb-unix:sigprof -1)))
@@ -184,6 +184,7 @@ The following keyword args are recognized:
     (:alloc
      (setq enable-alloc-profiler 1))
     (:cpu
+     #-win32
      (multiple-value-bind (secs usecs)
          (multiple-value-bind (secs rest) (truncate sample-interval)
            (values secs (truncate (* rest 1000000))))
@@ -201,17 +202,22 @@ The following keyword args are recognized:
                                  (neq thread *timer*))
                         (funcall function thread)))))))
        (sb-thread::start-thread
-          (setf *timer* (sb-thread::%make-thread "SPROF timer" nil (sb-thread:make-semaphore)))
-          (lambda ()
-            (loop (unless *timer* (return))
-                  (sleep sample-interval)
-                  (map-threads
-                   (lambda (thread)
+        (setf *timer* (sb-thread::%make-thread "SPROF timer" nil (sb-thread:make-semaphore)))
+        (lambda ()
+          (loop (unless *timer* (return))
+                (sleep sample-interval)
+                (map-threads
+                 (lambda (thread)
+                   (unless #-win32 nil #+win32 (eq thread sb-thread:*current-thread*)
                      (sb-thread:with-deathlok (thread c-thread)
                        (unless (= c-thread 0)
+                         #-win32
                          (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                               sb-unix:sigprof)))))))
-          nil))
+                                               sb-unix:sigprof)
+                         #+win32
+                         (alien-funcall (extern-alien "record_sample" (function void (* t)))
+                                        (sb-sys:int-sap c-thread)))))))))
+        nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))
                                                :name "SPROF timer"))
@@ -228,7 +234,7 @@ The following keyword args are recognized:
         (:alloc
          (setq enable-alloc-profiler 0))
         (:cpu
-         (unix-setitimer :profile 0 0 0 0))
+         #-win32 (unix-setitimer :profile 0 0 0 0))
         (:time
          (let ((timer *timer*))
            ;; after this assignment, the timer thread will raise the

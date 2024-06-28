@@ -52,16 +52,24 @@
     (do-fprs pop :xmm)))
 
 (define-assembly-routine (alloc-tramp) ()
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
   (with-registers-preserved (c)
     (inst mov rdi-tn (ea 16 rbp-tn))
     (inst call (make-fixup "alloc" :foreign))
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn)) ; result onto stack
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0))
 
 (define-assembly-routine (list-alloc-tramp) () ; CONS, ACONS, LIST, LIST*
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
   (with-registers-preserved (c)
     (inst mov rdi-tn (ea 16 rbp-tn))
     (inst call (make-fixup "alloc_list" :foreign))
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn)) ; result onto stack
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0))
 
 (define-assembly-routine (listify-&rest (:return-style :none)) ()
   (with-registers-preserved (c)

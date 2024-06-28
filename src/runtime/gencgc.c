@@ -4870,7 +4870,7 @@ lisp_alloc(int largep, struct alloc_region *region, sword_t nbytes,
     }
 
 #if !(defined LISP_FEATURE_PPC || defined LISP_FEATURE_PPC64 \
-      || defined LISP_FEATURE_SPARC || defined LISP_FEATURE_WIN32)
+      || defined LISP_FEATURE_SPARC)
     // Architectures which utilize a trap instruction to invoke the overflow
     // handler use the signal context from which to record a backtrace.
     // That's reliable, but access_control_frame_pointer(thread) isn't.
@@ -4878,7 +4878,11 @@ lisp_alloc(int largep, struct alloc_region *region, sword_t nbytes,
     // for win32, but sb-sprof never did work there anyway.
     extern void allocator_record_backtrace(void*, struct thread*);
     if (gencgc_alloc_profiler && thread->state_word.sprof_enable)
+# ifdef LISP_FEATURE_WIN32
+        allocator_record_backtrace(thread->control_frame_pointer, thread);
+# else
         allocator_record_backtrace(__builtin_frame_address(0), thread);
+# endif
 #endif
 
     return (new_obj);
