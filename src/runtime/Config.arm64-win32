@@ -26,7 +26,7 @@ SOFLAGS += -Wl,-export-all-symbols -Wl,mswin64.def -Wl,mswin.def
 
 __LDFLAGS__ =
 
-OS_LIBS = -l ws2_32 -ladvapi32
+OS_LIBS = -l ws2_32 -ladvapi32 -lwinpthread
 ifdef LISP_FEATURE_SB_CORE_COMPRESSION
   OS_LIBS += -lzstd
 endif

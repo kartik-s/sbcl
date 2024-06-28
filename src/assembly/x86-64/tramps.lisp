@@ -159,18 +159,30 @@
 (def-routine-pair (alloc-tramp) ()
   (with-registers-preserved (c)
     RESTART
+    ;; allocator_record_backtrace requires a frame pointer. Because
+    ;; x86-64 Windows does not save frame pointers, we save it
+    ;; manually into the thread struct before calling into the
+    ;; allocator.
+    #+win32
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc" (ea 16 rbp-tn) system-tlab-p)
     (test-arena-exhausted :bytes-non-list)
     SUCCESS
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn) ; result onto stack
+    #+win32
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)))
 
 (def-routine-pair (list-alloc-tramp) () ; CONS, ACONS, LIST, LIST*
   (with-registers-preserved (c)
     RESTART
+    #+win32
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc_list" (ea 16 rbp-tn) system-tlab-p)
     (test-arena-exhausted :bytes-list)
     SUCCESS
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn) ; result onto stack
+    #+win32
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)))
 
 (def-routine-pair (listify-&rest (:return-style :none)) ()
   (with-registers-preserved (c)

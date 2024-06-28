@@ -124,6 +124,7 @@ EXPERIMENTAL: Interface subject to change."
     (apply #'format t format-string args)
     (finish-output)))
 
+#-win32
 (define-alien-routine "sb_toggle_sigprof" int (context system-area-pointer) (state int))
 
 ;;; If a thread wants sampling but had previously blocked SIGPROF,
@@ -141,6 +142,7 @@ EXPERIMENTAL: Interface subject to change."
            (sb-thread::%interrupt-thread thread #'start-sampling))
           (t
            (setf sb-thread::*sprof-enable* 1)
+           #-win32
            (sb-toggle-sigprof (if (boundp 'sb-kernel:*current-internal-error-context*)
                                   sb-kernel:*current-internal-error-context*
                                   (sb-sys:int-sap 0))
@@ -153,6 +155,7 @@ EXPERIMENTAL: Interface subject to change."
     #+sb-thread (sb-thread::%set-symbol-value-in-thread 'sb-thread::*sprof-enable* thread 0)
     #-sb-thread (setq sb-thread::*sprof-enable* 0)
     ;; Blocking the signal is done lazily in threads other than the current one.
+    #-win32
     (when (eq thread sb-thread:*current-thread*)
       (sb-toggle-sigprof (sb-sys:int-sap 0) 1))) ; 1 = mask it
   nil))
@@ -349,12 +352,13 @@ EXPERIMENTAL: Interface subject to change."
         (aggregate-data))
     ;; Mask SIGPROF in this thread in case of pending signal
     ;; and funky scheduling by the OS.
-    (let ((saved-sigprof-mask (sb-toggle-sigprof (int-sap 0) 1)))
+    (let (#-win32 (saved-sigprof-mask (sb-toggle-sigprof (int-sap 0) 1)))
       (call-with-each-profile-buffer
        (lambda (sap thread memusage)
          (push (cons thread memusage) threads)
          (push (cons (extract-traces sap ht) thread) aggregate-data)))
       (setf (extern-alien "sb_sprof_enabled" int) 0)
+      #-win32
       (sb-toggle-sigprof (int-sap 0) saved-sigprof-mask))
     ;; Precompute the length of the new SAMPLES-VECTOR
     (let ((vector

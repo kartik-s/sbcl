@@ -13,7 +13,7 @@
   "Default maximum number of stack traces collected.")
 (declaim (type sb-int:index *max-samples*))
 
-(defvar *sampling-mode* :cpu
+(defvar *sampling-mode* #-win32 :cpu #+win32 :time ; Windows doesn't support CPU profiling
   "Default sampling mode. :CPU for cpu profiling, :ALLOC for allocation
 profiling, and :TIME for wallclock profiling.")
 (declaim (type sampling-mode *sampling-mode*))
@@ -111,7 +111,6 @@ inappropriate set of sampled threads, or possibly a profiler bug.~:@>"))
 ;;; or SB-EXT:TIMER depending on whether thread support exists.
 (defglobal *timer* nil)
 
-#+unix
 (defun start-profiling (&key (max-samples *max-samples*)
                         (mode *sampling-mode*)
                         (sample-interval *sample-interval*)
@@ -151,6 +150,12 @@ The following keyword args are recognized:
   #-generational
   (when (eq mode :alloc)
     (error "Allocation profiling is only supported for builds using the generational garbage collector."))
+  #+win32
+  (when (eq mode :cpu)
+    (error "CPU profiling is not supported on Windows."))
+  #+(and win32 arm64)
+  (when (eq mode :alloc)
+    (error "Allocation profiling is not supported on ARM64 Windows."))
   #-sb-thread (unless (eq threads :all) (warn ":THREADS is ignored"))
   (when *profiling*
     (warn "START-PROFILING will STOP-PROFILING first before applying new parameters")
@@ -178,6 +183,7 @@ The following keyword args are recognized:
   ;; as a boolean flag. -1 means "install", 0 means "uninstall" which we don't do.
   ;; Statistical allocation profiling is not signal-based- instead, whenever a C call
   ;; occurs to handle thread-local allocation region overflow, a trace is recorded.
+  #-win32
   (unless (eq mode :alloc)
     (with-alien ((%sigaction (function void int signed) :extern "install_handler"))
       (alien-funcall %sigaction sb-unix:sigprof -1)))
@@ -187,6 +193,7 @@ The following keyword args are recognized:
     (:alloc
      (setq enable-alloc-profiler 1))
     (:cpu
+     #-win32
      (multiple-value-bind (secs usecs)
          (multiple-value-bind (secs rest) (truncate sample-interval)
            (values secs (truncate (* rest 1000000))))
@@ -210,10 +217,15 @@ The following keyword args are recognized:
                   (sleep sample-interval)
                   (map-threads
                    (lambda (thread)
-                     (sb-thread:with-tls-lock (thread c-thread)
-                       (unless (= c-thread 0)
-                         (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                               sb-unix:sigprof)))))))
+                     (unless #-win32 nil #+win32 (eq thread sb-thread:*current-thread*)
+                       (sb-thread:with-tls-lock (thread c-thread)
+                         (unless (= c-thread 0)
+                           #-win32
+                           (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
+                                                 sb-unix:sigprof)
+                           #+win32
+                           (alien-funcall (extern-alien "record_sample" (function void (* t)))
+                                          (sb-sys:int-sap c-thread)))))))))
           nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))

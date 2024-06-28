@@ -5,7 +5,7 @@
 ;;; but I need to try to see it behaving badly (if it does),
 ;;; and there's really no other way than to watch for bad output.
 
-#+(or win32 sparc) (invoke-restart 'run-tests::skip-file)
+#+(or sparc) (invoke-restart 'run-tests::skip-file)
 
 (require :sb-sprof)
 
