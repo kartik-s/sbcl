@@ -111,7 +111,6 @@ inappropriate set of sampled threads, or possibly a profiler bug.~:@>"))
 ;;; or SB-EXT:TIMER depending on whether thread support exists.
 (defglobal *timer* nil)
 
-#+unix
 (defun start-profiling (&key (max-samples *max-samples*)
                         (mode *sampling-mode*)
                         (sample-interval *sample-interval*)
@@ -178,6 +177,7 @@ The following keyword args are recognized:
   ;; as a boolean flag. -1 means "install", 0 means "uninstall" which we don't do.
   ;; Statistical allocation profiling is not signal-based- instead, whenever a C call
   ;; occurs to handle thread-local allocation region overflow, a trace is recorded.
+  #-win32
   (unless (eq mode :alloc)
     (with-alien ((%sigaction (function void int signed) :extern "install_handler"))
       (alien-funcall %sigaction sb-unix:sigprof -1)))
@@ -187,6 +187,7 @@ The following keyword args are recognized:
     (:alloc
      (setq enable-alloc-profiler 1))
     (:cpu
+     #+unix
      (multiple-value-bind (secs usecs)
          (multiple-value-bind (secs rest) (truncate sample-interval)
            (values secs (truncate (* rest 1000000))))
@@ -204,17 +205,27 @@ The following keyword args are recognized:
                                  (neq thread *timer*))
                         (funcall function thread)))))))
        (sb-thread::start-thread
-          (setf *timer* (sb-thread::%make-thread "SPROF timer" nil (sb-thread:make-semaphore)))
-          (lambda ()
-            (loop (unless *timer* (return))
-                  (sleep sample-interval)
-                  (map-threads
-                   (lambda (thread)
-                     (sb-thread:with-deathlok (thread c-thread)
-                       (unless (= c-thread 0)
-                         (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                               sb-unix:sigprof)))))))
-          nil))
+        (setf *timer* (sb-thread::%make-thread "SPROF timer" nil (sb-thread:make-semaphore)))
+        (lambda ()
+          (loop (unless *timer* (return))
+                (sleep sample-interval)
+                (map-threads
+                 (lambda (thread)
+                   (sb-thread:with-deathlok (thread c-thread)
+                     (unless (= c-thread 0)
+                       #-win32
+                       (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
+                                             sb-unix:sigprof)
+                       #+win32
+                       (let ((thread-handle (sap-int (sb-vm::current-thread-offset-sap
+                                                      sb-vm::thread-os-thread-slot))))
+                         (alien-funcall (extern-alien "SuspendThread" (function int int))
+                                        thread-handle)
+                         (alien-funcall (extern-alien "sample_handler" (function void (* t)))
+                                        c-thread)
+                         (alien-funcall (extern-alien "ResumeThread" (function int int))
+                                        thread-handle)))))))))
+        nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))
                                                :name "SPROF timer"))

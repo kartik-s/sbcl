@@ -20,6 +20,10 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+#ifdef LISP_FEATURE_WIN32
+#include <Windows.h>
+#endif
 /* Basic approach:
  * each thread allocates a storage for samples (traces) and a hash-table
  * to groups matching samples together. Collisions in the table are resolved
@@ -528,6 +532,24 @@ void sigprof_handler(int sig, __attribute__((unused)) siginfo_t* info,
     }
     errno = _saved_errno;
 }
+
+#ifdef LISP_FEATURE_WIN32
+void sample_handler(struct thread *thread)
+{
+  if (gc_active_p) return;
+  int _saved_errno = errno;
+  if (thread->state_word.sprof_enable) {
+      DWORD context_len;
+      CONTEXT *context;
+      InitializeContext(NULL, CONTEXT_ALL, NULL, &context_len);
+      char context_buf[context_len];
+      InitializeContext(context_buf, CONTEXT_ALL, &context, &context_len);
+      GetThreadContext(thread->os_thread, context);
+      record_backtrace_from_context(context, thread);
+  }
+  errno = _saved_errno;
+}
+#endif
 
 #if !(defined LISP_FEATURE_PPC || defined LISP_FEATURE_PPC64 || defined LISP_FEATURE_SPARC)
 void allocator_record_backtrace(void* frame_ptr, struct thread* thread)
