@@ -8,9 +8,6 @@
 
 (require :sb-sprof)
 
-#+win32
-(setf sb-sprof::*sampling-mode* :time)
-
 ;;; silly examples
 
 (defun test-0 (n &optional (depth 0))

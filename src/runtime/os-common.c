@@ -128,7 +128,6 @@ os_set_errno(int new_errno)
 void
 os_sem_init(os_sem_t *sem, unsigned int value)
 {
-
     if (-1==sem_init(sem, 0, value))
         lose("os_sem_init(%p, %u): %s", sem, value, strerror(errno));
 }

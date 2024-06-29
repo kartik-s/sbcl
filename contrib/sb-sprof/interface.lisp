@@ -13,7 +13,7 @@
   "Default maximum number of stack traces collected.")
 (declaim (type sb-int:index *max-samples*))
 
-(defvar *sampling-mode* :cpu
+(defvar *sampling-mode* #-win32 :cpu #+win32 :time
   "Default sampling mode. :CPU for cpu profiling, :ALLOC for allocation
 profiling, and :TIME for wallclock profiling.")
 (declaim (type sampling-mode *sampling-mode*))
