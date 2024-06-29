@@ -540,16 +540,17 @@ void record_sample(struct thread *thread)
   if (gc_active_p) return;
   int _saved_errno = errno;
   if (thread->state_word.sprof_enable) {
+      HANDLE thread_handle = (HANDLE) thread->os_thread;
       CONTEXT win32_context;
       os_context_t context;
 
       win32_context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
       context.win32_context = &win32_context;
 
-      SuspendThread((HANDLE) thread->os_thread);
-      GetThreadContext((HANDLE) thread->os_thread, &win32_context);
+      SuspendThread(thread_handle);
+      GetThreadContext(thread_handle, &win32_context);
       record_backtrace_from_context(&context, thread);
-      ResumeThread((HANDLE) thread->os_thread);
+      ResumeThread(thread_handle);
   }
   errno = _saved_errno;
 }
