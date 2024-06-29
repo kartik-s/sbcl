@@ -535,21 +535,15 @@ void sigprof_handler(int sig, __attribute__((unused)) siginfo_t* info,
 }
 
 #ifdef LISP_FEATURE_WIN32
-void sample_handler(struct thread *thread)
+void record_sample(struct thread *thread)
 {
   if (gc_active_p) return;
   int _saved_errno = errno;
   if (thread->state_word.sprof_enable) {
-      DWORD win32_context_len;
       CONTEXT win32_context;
-      win32_context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-#if 0
-      InitializeContext(NULL, CONTEXT_ALL, NULL, &win32_context_len);
-      char win32_context_buf[win32_context_len];
-      InitializeContext(win32_context_buf, CONTEXT_ALL, &win32_context, &win32_context_len);
-#endif
-
       os_context_t context;
+
+      win32_context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
       context.win32_context = &win32_context;
 
       SuspendThread((HANDLE) thread->os_thread);

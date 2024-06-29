@@ -126,7 +126,8 @@ os_set_errno(int new_errno)
 
 #if defined LISP_FEATURE_SB_THREAD && !defined USE_DARWIN_GCD_SEMAPHORES && !defined CANNOT_USE_POSIX_SEM_T
 void
-os_sem_init(os_sem_t *sem, unsigned int value){
+os_sem_init(os_sem_t *sem, unsigned int value)
+{
 
     if (-1==sem_init(sem, 0, value))
         lose("os_sem_init(%p, %u): %s", sem, value, strerror(errno));

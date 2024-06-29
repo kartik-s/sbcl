@@ -187,7 +187,7 @@ The following keyword args are recognized:
     (:alloc
      (setq enable-alloc-profiler 1))
     (:cpu
-     #+unix
+     #-win32
      (multiple-value-bind (secs usecs)
          (multiple-value-bind (secs rest) (truncate sample-interval)
            (values secs (truncate (* rest 1000000))))
@@ -211,15 +211,16 @@ The following keyword args are recognized:
                 (sleep sample-interval)
                 (map-threads
                  (lambda (thread)
-                   (unless (eq thread sb-thread:*current-thread*)
-                     (sb-thread:with-deathlok (thread c-thread)
-                       (unless (= c-thread 0)
-                         #-win32
-                         (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                               sb-unix:sigprof)
-                         #+win32
-                         (alien-funcall (extern-alien "sample_handler" (function void (* t)))
-                                        (sb-sys:int-sap c-thread)))))))))
+                   (sb-thread:with-deathlok (thread c-thread)
+                     (unless (or (= c-thread 0)
+                                 #+win32
+                                 (eq thread sb-thread:*current-thread*))
+                       #-win32
+                       (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
+                                             sb-unix:sigprof)
+                       #+win32
+                       (alien-funcall (extern-alien "record_sample" (function void (* t)))
+                                      (sb-sys:int-sap c-thread))))))))
         nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))
@@ -240,7 +241,7 @@ The following keyword args are recognized:
         (:alloc
          (setq enable-alloc-profiler 0))
         (:cpu
-         #+unix (unix-setitimer :profile 0 0 0 0))
+         #-win32 (unix-setitimer :profile 0 0 0 0))
         (:time
          (let ((timer *timer*))
            ;; after this assignment, the timer thread will raise the
