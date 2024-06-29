@@ -23,6 +23,7 @@
 
 #ifdef LISP_FEATURE_WIN32
 #include <Windows.h>
+#include <pthread.h>
 #endif
 /* Basic approach:
  * each thread allocates a storage for samples (traces) and a hash-table
@@ -539,13 +540,22 @@ void sample_handler(struct thread *thread)
   if (gc_active_p) return;
   int _saved_errno = errno;
   if (thread->state_word.sprof_enable) {
-      DWORD context_len;
-      CONTEXT *context;
-      InitializeContext(NULL, CONTEXT_ALL, NULL, &context_len);
-      char context_buf[context_len];
-      InitializeContext(context_buf, CONTEXT_ALL, &context, &context_len);
-      GetThreadContext(thread->os_thread, context);
-      record_backtrace_from_context(context, thread);
+      DWORD win32_context_len;
+      CONTEXT win32_context;
+      win32_context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+#if 0
+      InitializeContext(NULL, CONTEXT_ALL, NULL, &win32_context_len);
+      char win32_context_buf[win32_context_len];
+      InitializeContext(win32_context_buf, CONTEXT_ALL, &win32_context, &win32_context_len);
+#endif
+
+      os_context_t context;
+      context.win32_context = &win32_context;
+
+      SuspendThread((HANDLE) thread->os_thread);
+      GetThreadContext((HANDLE) thread->os_thread, &win32_context);
+      record_backtrace_from_context(&context, thread);
+      ResumeThread((HANDLE) thread->os_thread);
   }
   errno = _saved_errno;
 }

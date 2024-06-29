@@ -211,20 +211,15 @@ The following keyword args are recognized:
                 (sleep sample-interval)
                 (map-threads
                  (lambda (thread)
-                   (sb-thread:with-deathlok (thread c-thread)
-                     (unless (= c-thread 0)
-                       #-win32
-                       (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                             sb-unix:sigprof)
-                       #+win32
-                       (let ((thread-handle (sap-int (sb-vm::current-thread-offset-sap
-                                                      sb-vm::thread-os-thread-slot))))
-                         (alien-funcall (extern-alien "SuspendThread" (function int int))
-                                        thread-handle)
+                   (unless (eq thread sb-thread:*current-thread*)
+                     (sb-thread:with-deathlok (thread c-thread)
+                       (unless (= c-thread 0)
+                         #-win32
+                         (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
+                                               sb-unix:sigprof)
+                         #+win32
                          (alien-funcall (extern-alien "sample_handler" (function void (* t)))
-                                        c-thread)
-                         (alien-funcall (extern-alien "ResumeThread" (function int int))
-                                        thread-handle)))))))))
+                                        (sb-sys:int-sap c-thread)))))))))
         nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))

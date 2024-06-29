@@ -104,12 +104,16 @@
 
 (def-routine-pair (alloc-tramp) ()
   (with-registers-preserved (c)
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc" (ea 16 rbp-tn) system-tlab-p)
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)
     (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
 
 (def-routine-pair (list-alloc-tramp) () ; CONS, ACONS, LIST, LIST*
   (with-registers-preserved (c)
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc_list" (ea 16 rbp-tn) system-tlab-p)
+    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)
     (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
 
 (def-routine-pair (listify-&rest (:return-style :none)) ()

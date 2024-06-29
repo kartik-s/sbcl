@@ -1,13 +1,15 @@
-
 ;;; This exists outside of the unit test in sb-sprof so that you can execute
 ;;; it with parallel-exec specifying an arbitrarily huge --runs_per_test.
 ;;; It is uncharacteristically verbose in its output for my liking,
 ;;; but I need to try to see it behaving badly (if it does),
 ;;; and there's really no other way than to watch for bad output.
 
-#+(or win32 sparc) (invoke-restart 'run-tests::skip-file)
+#+(or sparc) (invoke-restart 'run-tests::skip-file)
 
 (require :sb-sprof)
+
+#+win32
+(setf sb-sprof::*sampling-mode* :time)
 
 ;;; silly examples
 

@@ -4135,11 +4135,15 @@ lisp_alloc(int flags, struct alloc_region *region, sword_t nbytes,
      * sample. Also the trapping ones don't trap for code.
      * #+win32 doesn't seem to work, but neither does CPU profiling */
 #if !(defined LISP_FEATURE_PPC || defined LISP_FEATURE_PPC64 \
-      || defined LISP_FEATURE_SPARC || defined LISP_FEATURE_WIN32)
+      || defined LISP_FEATURE_SPARC)
     extern void allocator_record_backtrace(void*, struct thread*);
     if (page_type != PAGE_TYPE_CODE && gencgc_alloc_profiler
         && thread->state_word.sprof_enable)
+# ifdef LISP_FEATURE_WIN32
+        allocator_record_backtrace(thread->control_frame_pointer, thread);
+# else
         allocator_record_backtrace(__builtin_frame_address(0), thread);
+# endif
 #endif
 
     if (flags & 1) return gc_alloc_large(nbytes, page_type);

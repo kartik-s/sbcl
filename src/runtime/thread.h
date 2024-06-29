@@ -64,7 +64,7 @@ struct extra_thread_data
     uint32_t state_not_running_waitcount;
     uint32_t state_not_stopped_waitcount;
 #endif
-#if defined LISP_FEATURE_SB_THREAD && defined LISP_FEATURE_UNIX
+#if defined LISP_FEATURE_SB_THREAD
     // According to https://github.com/adrienverge/openfortivpn/issues/105
     //   "using GCD semaphore in signal handlers is documented to be unsafe"
     // which seems almost impossible to believe, considering that sem_t is
