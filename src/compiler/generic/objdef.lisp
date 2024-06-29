@@ -631,7 +631,7 @@ during backtrace.
   ;; so that 'grep' can find the one you want more easily.
   #+(and sb-thread (not arm64)) (ffcall-active-p)
   ;; Same as above for the location of the current control stack frame.
-  #+(and sb-thread (not (or x86)))
+  #+(and sb-thread (or win32 (not (or x86 x86-64))))
   (control-frame-pointer :c-type "lispobj *")
   ;; Same as above for the location of the current control stack
   ;; pointer.  This is also used on threaded x86oids to allow LDB to

@@ -211,16 +211,15 @@ The following keyword args are recognized:
                 (sleep sample-interval)
                 (map-threads
                  (lambda (thread)
-                   (sb-thread:with-deathlok (thread c-thread)
-                     (unless (or (= c-thread 0)
-                                 #+win32
-                                 (eq thread sb-thread:*current-thread*))
-                       #-win32
-                       (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
-                                             sb-unix:sigprof)
-                       #+win32
-                       (alien-funcall (extern-alien "record_sample" (function void (* t)))
-                                      (sb-sys:int-sap c-thread))))))))
+                   (unless #-win32 nil #+win32 (eq thread sb-thread:*current-thread*)
+                     (sb-thread:with-deathlok (thread c-thread)
+                       (unless (= c-thread 0)
+                         #-win32
+                         (sb-unix:pthread-kill (sb-thread::thread-os-thread thread)
+                                               sb-unix:sigprof)
+                         #+win32
+                         (alien-funcall (extern-alien "record_sample" (function void (* t)))
+                                        (sb-sys:int-sap c-thread)))))))))
         nil))
      #-sb-thread
      (schedule-timer (setf *timer* (make-timer (lambda () (unix-kill 0 sb-unix:sigprof))
