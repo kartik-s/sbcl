@@ -150,6 +150,9 @@ The following keyword args are recognized:
   #-generational
   (when (eq mode :alloc)
     (error "Allocation profiling is only supported for builds using the generational garbage collector."))
+  #+win32
+  (when (eq mode :cpu)
+    (error "CPU profiling is not supported on Windows."))
   #-sb-thread (unless (eq threads :all) (warn ":THREADS is ignored"))
   (when *profiling*
     (warn "START-PROFILING will STOP-PROFILING first before applying new parameters")
@@ -202,6 +205,7 @@ The following keyword args are recognized:
                     (awhen (sb-thread::avlnode-right node) (visit it))
                     (let ((thread (sb-thread::avlnode-data node)))
                       (when (and (= (sb-thread::thread-%visible thread) 1)
+                                 #+win32 *timer*
                                  (neq thread *timer*))
                         (funcall function thread)))))))
        (sb-thread::start-thread

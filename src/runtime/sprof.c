@@ -539,8 +539,8 @@ void record_sample(struct thread *thread)
 {
   if (gc_active_p) return;
   int _saved_errno = errno;
-  HANDLE thread_handle = (HANDLE) thread->os_thread;
-  if (thread_handle != GetCurrentThread() && thread->state_word.sprof_enable) {
+  if (thread->state_word.sprof_enable) {
+      HANDLE thread_handle = (HANDLE) thread->os_thread;
       CONTEXT win32_context;
       os_context_t context;
 
