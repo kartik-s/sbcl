@@ -103,22 +103,22 @@
                     ,vars ,@code)))))
 
 (def-routine-pair (alloc-tramp) ()
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
   (with-registers-preserved (c)
-    #+win32
-    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc" (ea 16 rbp-tn) system-tlab-p)
-    #+win32
-    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn)) ; result onto stack
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0))
 
 (def-routine-pair (list-alloc-tramp) () ; CONS, ACONS, LIST, LIST*
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
   (with-registers-preserved (c)
-    #+win32
-    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) rbp-tn)
     (call-c "alloc_list" (ea 16 rbp-tn) system-tlab-p)
-    #+win32
-    (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0)
-    (inst mov (ea 16 rbp-tn) rax-tn))) ; result onto stack
+    (inst mov (ea 16 rbp-tn) rax-tn)) ; result onto stack
+  #+win32
+  (inst mov :qword (thread-slot-ea thread-control-frame-pointer-slot) 0))
 
 (def-routine-pair (listify-&rest (:return-style :none)) ()
   (with-registers-preserved (c)
